@@ -56,7 +56,7 @@ func TestChallenge3(t *testing.T) {
 	cipherText, err := hex.DecodeString(cipherTextHex)
 	assertNoError(t, err)
 
-	bestKey, bestCost, bestString := crackXORByte2(cipherText)
+	bestKey, bestCost, bestString := crackXORByteCost(cipherText)
 
 	fmt.Println(bestKey, bestCost, bestString)
 	assertEquals(t, bestKey, byte(88))
@@ -68,18 +68,19 @@ func TestChallenge4(t *testing.T) {
 	assertNoError(t, err)
 	lines := strings.Split(string(data), "\n")
 
-	bestScore := float64(0)
+	bestCost := float64(1000)
 	bestPlainText := ""
 	for _, line := range lines {
 		cipherText, err := hex.DecodeString(line)
 		assertNoError(t, err)
 
-		_, score, plainText := crackXORByte2(cipherText)
-		if score > bestScore {
+		_, cost, plainText := crackXORByteCost(cipherText)
+		if cost < bestCost {
 			bestPlainText = plainText
-			bestScore = score
+			bestCost = cost
 		}
 	}
 
-	assertEquals(t, bestPlainText, "Now that the party is jumping\n")
+	fmt.Println(bestCost, bestPlainText)
+	assertEquals(t, "Now that the party is jumping\n", bestPlainText)
 }
