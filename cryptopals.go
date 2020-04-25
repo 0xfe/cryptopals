@@ -49,7 +49,8 @@ func getExpectedFreqForChar(char byte) float64 {
 	return value
 }
 
-// Calculates the liklihood of str being an English string using chi-squared testing
+// Calculates the liklihood of str being an English string using chi-squared testing. Lower
+// cost means higher liklihood.
 func calcStringCost(str []byte) float64 {
 	countMap := map[byte]int{}
 	totalChars := len(str)
@@ -74,7 +75,8 @@ func calcStringCost(str []byte) float64 {
 	return cost
 }
 
-// Calculates the liklihood of str being an English string using correlation
+// Calculates the liklihood of str being an English string using correlation. Higher score
+// means higher liklihood.
 func calcStringScore(str []byte) float64 {
 	score := float64(0)
 	for _, char := range str {
