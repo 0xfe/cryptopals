@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -93,7 +94,7 @@ func TestChallenge5(t *testing.T) {
 	cipherText := make([]byte, len(plainText))
 	for i := 0; i < len(plainText); i += len(key) {
 		end := i + len(key)
-		if i+len(key) > len(plainText) {
+		if end > len(plainText) {
 			end = len(plainText)
 		}
 
@@ -105,4 +106,87 @@ func TestChallenge5(t *testing.T) {
 	}
 
 	assertEquals(t, want, hex.EncodeToString(cipherText))
+}
+
+func TestHammingDistance(t *testing.T) {
+	distance, err := hamming([]byte("this is a test"), []byte("wokka wokka!!!"))
+	assertNoError(t, err)
+	assertEquals(t, 37, distance)
+}
+
+type DistanceMap struct {
+	keySize  int
+	distance float64
+}
+
+type DistanceList []DistanceMap
+
+func (d DistanceList) Len() int           { return len(d) }
+func (d DistanceList) Swap(i, j int)      { (d)[i], (d)[j] = (d)[j], (d)[i] }
+func (d DistanceList) Less(i, j int) bool { return d[i].distance < d[j].distance }
+
+func TestChallenge6(t *testing.T) {
+	data, err := ioutil.ReadFile("6.txt")
+	assertNoError(t, err)
+
+	cipherText, err := base64.StdEncoding.DecodeString(string(data))
+	assertNoError(t, err)
+
+	distances := DistanceList{}
+	for keySize := 2; keySize <= 40; keySize++ {
+		meanDistance := float64(0)
+		for i := 0; i < (len(cipherText) / keySize); i++ {
+			first := cipherText[i : i+keySize]
+			second := cipherText[i+keySize : i+keySize+keySize]
+			distance, err := hamming(first, second)
+			assertNoError(t, err)
+			normalizedDistance := float64(distance) / float64(keySize)
+			meanDistance += normalizedDistance
+			meanDistance /= 2
+		}
+
+		distances = append(distances, DistanceMap{
+			keySize:  keySize,
+			distance: meanDistance,
+		})
+	}
+
+	// Sort to get lowest edit-distance key sizes
+	sort.Sort(distances)
+
+	bestCost := float64(100000000)
+	bestPlainText := ""
+	bestKey := ""
+	for i := 0; i < 3; i++ {
+		keySize := distances[i].keySize
+
+		km := make([][]byte, keySize)
+		for j := range km {
+			km[j] = make([]byte, (len(cipherText)/keySize)+1)
+		}
+
+		for j := range cipherText {
+			bucket := j % keySize
+			loc := j / keySize
+			km[bucket][loc] = byte(cipherText[j])
+		}
+
+		keys := []byte{}
+		totalCost := float64(0)
+		for j := range km {
+			block := km[j]
+			key, cost, _ := crackXORByteCost(block)
+			keys = append(keys, key)
+			totalCost += cost
+		}
+
+		if totalCost < bestCost {
+			bestKey = string(keys)
+			bestPlainText = string(decryptRepeatingKeyXOR(cipherText, keys))
+			bestCost = totalCost
+		}
+	}
+
+	fmt.Printf("Plaintext:\n%s\n\nBest key: %s, Best cost: %f\n", bestPlainText, bestKey, bestCost)
+	assertEquals(t, "Terminator Xt Bring the noise", bestKey)
 }

@@ -1,6 +1,7 @@
 package cryptopals
 
 import (
+	"fmt"
 	"math"
 	"strings"
 )
@@ -121,4 +122,48 @@ func crackXORByteScore(cipherText []byte) (key byte, cost float64, plainText str
 	}
 
 	return bestKey, bestScore, bestString
+}
+
+func hamming(a []byte, b []byte) (int, error) {
+	if len(a) != len(b) {
+		return -1, fmt.Errorf("strings not equal length")
+	}
+
+	length := len(a)
+	if length == 0 {
+		return 0, nil
+	}
+
+	count := 0
+	for i := range a {
+		// XOR the bytes, the number of remaining 1-bits represent
+		// the differing bits.
+		diff := a[i] ^ b[i]
+
+		// Count the number of 1-bits in the result
+		for j := 0; j < 8; j++ {
+			count += int(diff & 1)
+			diff >>= 1
+		}
+	}
+
+	return count, nil
+}
+
+func decryptRepeatingKeyXOR(cipherText []byte, key []byte) []byte {
+	plainText := make([]byte, len(cipherText))
+	for i := 0; i < len(cipherText); i += len(key) {
+		end := i + len(key)
+		if end > len(cipherText) {
+			end = len(cipherText)
+		}
+
+		for j := range key {
+			if i+j < end {
+				plainText[i+j] = cipherText[i+j] ^ key[j]
+			}
+		}
+	}
+
+	return plainText
 }
