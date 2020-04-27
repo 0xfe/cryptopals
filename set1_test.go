@@ -135,9 +135,10 @@ func TestChallenge6(t *testing.T) {
 	distances := DistanceList{}
 	for keySize := 2; keySize <= 40; keySize++ {
 		meanDistance := float64(0)
-		for i := 0; i < (len(cipherText) / keySize); i++ {
-			first := cipherText[i : i+keySize]
-			second := cipherText[i+keySize : i+keySize+keySize]
+		for i := 0; i < 10; i++ {
+			start := i * keySize
+			first := cipherText[start : start+keySize]
+			second := cipherText[start+keySize : start+keySize+keySize]
 			distance, err := hamming(first, second)
 			assertNoError(t, err)
 			normalizedDistance := float64(distance) / float64(keySize)
@@ -185,8 +186,10 @@ func TestChallenge6(t *testing.T) {
 			bestPlainText = string(decryptRepeatingKeyXOR(cipherText, keys))
 			bestCost = totalCost
 		}
+		fmt.Printf("cost: %f, key: %s\n", totalCost, string(keys))
 	}
 
-	fmt.Printf("Plaintext:\n%s\n\nBest key: %s, Best cost: %f\n", bestPlainText, bestKey, bestCost)
-	assertEquals(t, "Terminator Xt Bring the noise", bestKey)
+	fmt.Printf(bestPlainText)
+	fmt.Printf("\nBest key: %s, Best cost: %f\n", bestKey, bestCost)
+	assertEquals(t, "Terminator X: Bring the noise", bestKey)
 }
