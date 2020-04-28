@@ -229,7 +229,7 @@ func numSimilarBlocks(data []byte, blockSize int, minSimilarity int) (int, error
 
 	count := 0
 	for i := 0; i < numBlocks; i++ {
-		for j := 0; j < numBlocks; j++ {
+		for j := i; j < numBlocks; j++ {
 			if i == j {
 				continue
 			}

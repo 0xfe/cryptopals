@@ -224,7 +224,7 @@ func TestChallenge8(t *testing.T) {
 	}
 
 	assertEquals(t, 132, bestLine)
-	assertEquals(t, 12, bestCount)
+	assertEquals(t, 6, bestCount)
 
 	fmt.Printf("ECB encrypted line: %d, num similar blocks: %d, content: %s\n", bestLine+1, bestCount, lines[bestLine])
 }
