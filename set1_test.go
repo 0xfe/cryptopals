@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -134,17 +135,8 @@ func TestChallenge6(t *testing.T) {
 
 	distances := DistanceList{}
 	for keySize := 2; keySize <= 40; keySize++ {
-		meanDistance := float64(0)
-		for i := 0; i < 10; i++ {
-			start := i * keySize
-			first := cipherText[start : start+keySize]
-			second := cipherText[start+keySize : start+keySize+keySize]
-			distance, err := hamming(first, second)
-			assertNoError(t, err)
-			normalizedDistance := float64(distance) / float64(keySize)
-			meanDistance += normalizedDistance
-			meanDistance /= 2
-		}
+		meanDistance, err := meanBlockHammingDistance(cipherText, keySize)
+		assertNoError(t, err)
 
 		distances = append(distances, DistanceMap{
 			keySize:  keySize,
@@ -192,4 +184,47 @@ func TestChallenge6(t *testing.T) {
 	fmt.Printf(bestPlainText)
 	fmt.Printf("\nBest key: %s, Best cost: %f\n", bestKey, bestCost)
 	assertEquals(t, "Terminator X: Bring the noise", bestKey)
+}
+
+func TestChallenge7(t *testing.T) {
+	key := "YELLOW SUBMARINE"
+	data, err := ioutil.ReadFile("7.txt")
+	assertNoError(t, err)
+
+	cipherText, err := base64.StdEncoding.DecodeString(string(data))
+	assertNoError(t, err)
+
+	plainText, err := decryptAESECB(cipherText, []byte(key), 16)
+	assertNoError(t, err)
+
+	trimmedPlaintext := strings.Trim(string(plainText), "\x04\n ")
+	re := regexp.MustCompile(`Play that funky music$`)
+	assertEquals(t, true, re.MatchString(trimmedPlaintext))
+}
+
+func TestChallenge8(t *testing.T) {
+	data, err := ioutil.ReadFile("8.txt")
+	assertNoError(t, err)
+
+	blockSize := 16
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+
+	bestCount := 0
+	bestLine := -1
+	for i, line := range lines {
+		cipherText, err := hex.DecodeString(line)
+		assertNoError(t, err)
+		count, err := numSimilarBlocks(cipherText, blockSize, 0)
+		assertNoError(t, err)
+
+		if count > bestCount {
+			bestCount = count
+			bestLine = i
+		}
+	}
+
+	assertEquals(t, 132, bestLine)
+	assertEquals(t, 12, bestCount)
+
+	fmt.Printf("ECB encrypted line: %d, num similar blocks: %d, content: %s\n", bestLine+1, bestCount, lines[bestLine])
 }

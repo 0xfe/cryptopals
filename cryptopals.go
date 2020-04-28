@@ -1,8 +1,10 @@
 package cryptopals
 
 import (
+	"crypto/aes"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -185,4 +187,80 @@ func decryptRepeatingKeyXOR(cipherText []byte, key []byte) []byte {
 	}
 
 	return plainText
+}
+
+// This function returns the mean hamming distance between blocks of size
+// blockSize.
+func meanBlockHammingDistance(data []byte, blockSize int, opts ...map[string]string) (float64, error) {
+	// Get the average of maxBlocks blocks
+	maxBlocks := 10
+
+	if len(opts) > 0 {
+		intBlocks, err := strconv.ParseInt(opts[0]["maxBlocks"], 10, 16)
+		maxBlocks = int(intBlocks)
+		if err != nil {
+			return 0, fmt.Errorf("could not parse opts: %w", err)
+		}
+	}
+
+	meanDistance := float64(0)
+	for i := 0; i < maxBlocks; i++ {
+		start := i * blockSize
+		first := data[start : start+blockSize]
+		second := data[start+blockSize : start+blockSize+blockSize]
+		distance, err := hamming(first, second)
+
+		if err != nil {
+			return 0, fmt.Errorf("could not compute hamming distance: %w", err)
+		}
+
+		normalizedDistance := float64(distance) / float64(blockSize)
+		meanDistance += normalizedDistance
+		meanDistance /= 2
+	}
+
+	return meanDistance, nil
+}
+
+// Returns the number of blocks that have a similarity score under minSimilarity. The score
+// is the hamming distance between the blocks.
+func numSimilarBlocks(data []byte, blockSize int, minSimilarity int) (int, error) {
+	numBlocks := len(data) / blockSize
+
+	count := 0
+	for i := 0; i < numBlocks; i++ {
+		for j := 0; j < numBlocks; j++ {
+			if i == j {
+				continue
+			}
+			first := data[i*blockSize : (i+1)*blockSize]
+			second := data[j*blockSize : (j+1)*blockSize]
+			distance, err := hamming(first, second)
+			if err != nil {
+				return 0, fmt.Errorf("could not compute hamming distance: %w", err)
+			}
+
+			if distance <= minSimilarity {
+				count++
+			}
+		}
+	}
+
+	return count, nil
+}
+
+func decryptAESECB(cipherText []byte, key []byte, blockSize int) ([]byte, error) {
+	plainText := make([]byte, len(cipherText))
+	cipher, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize AES: %w", err)
+	}
+
+	for i := 0; i < (len(plainText) / blockSize); i++ {
+		start := i * blockSize
+		end := (i + 1) * blockSize
+		cipher.Decrypt(plainText[start:end], cipherText[start:end])
+	}
+
+	return plainText, nil
 }
