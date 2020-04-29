@@ -11,19 +11,7 @@ import (
 	"testing"
 )
 
-func assertNoError(t *testing.T, err error) {
-	if err != nil {
-		t.Errorf("want no error, got error: %v", err)
-	}
-}
-
-func assertEquals(t *testing.T, want interface{}, got interface{}) {
-	if want != got {
-		t.Errorf("want: %v, got %v", want, got)
-	}
-}
-
-func TestChallenge1(t *testing.T) {
+func TestS1C1(t *testing.T) {
 	inHex := "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
 	wantBase64 := "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
 
@@ -34,7 +22,7 @@ func TestChallenge1(t *testing.T) {
 	assertEquals(t, wantBase64, gotBase64)
 }
 
-func TestChallenge2(t *testing.T) {
+func TestS1C2(t *testing.T) {
 	inHex1 := "1c0111001f010100061a024b53535009181c"
 	inHex2 := "686974207468652062756c6c277320657965"
 	wantHex := "746865206b696420646f6e277420706c6179"
@@ -53,7 +41,7 @@ func TestChallenge2(t *testing.T) {
 	assertEquals(t, wantHex, gotHex)
 }
 
-func TestChallenge3(t *testing.T) {
+func TestS1C3(t *testing.T) {
 	cipherTextHex := "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
 	cipherText, err := hex.DecodeString(cipherTextHex)
 	assertNoError(t, err)
@@ -65,7 +53,7 @@ func TestChallenge3(t *testing.T) {
 	assertEquals(t, bestString, "Cooking MC's like a pound of bacon")
 }
 
-func TestChallenge4(t *testing.T) {
+func TestS1C4(t *testing.T) {
 	data, err := ioutil.ReadFile("4.txt")
 	assertNoError(t, err)
 	lines := strings.Split(string(data), "\n")
@@ -87,7 +75,7 @@ func TestChallenge4(t *testing.T) {
 	assertEquals(t, "Now that the party is jumping\n", bestPlainText)
 }
 
-func TestChallenge5(t *testing.T) {
+func TestS1C5(t *testing.T) {
 	plainText := "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
 	key := "ICE"
 	want := "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f"
@@ -126,7 +114,7 @@ func (d DistanceList) Len() int           { return len(d) }
 func (d DistanceList) Swap(i, j int)      { (d)[i], (d)[j] = (d)[j], (d)[i] }
 func (d DistanceList) Less(i, j int) bool { return d[i].distance < d[j].distance }
 
-func TestChallenge6(t *testing.T) {
+func TestS1C6(t *testing.T) {
 	data, err := ioutil.ReadFile("6.txt")
 	assertNoError(t, err)
 
@@ -186,7 +174,7 @@ func TestChallenge6(t *testing.T) {
 	assertEquals(t, "Terminator X: Bring the noise", bestKey)
 }
 
-func TestChallenge7(t *testing.T) {
+func TestS1C7(t *testing.T) {
 	key := "YELLOW SUBMARINE"
 	data, err := ioutil.ReadFile("7.txt")
 	assertNoError(t, err)
@@ -202,7 +190,7 @@ func TestChallenge7(t *testing.T) {
 	assertEquals(t, true, re.MatchString(trimmedPlaintext))
 }
 
-func TestChallenge8(t *testing.T) {
+func TestS1C8(t *testing.T) {
 	data, err := ioutil.ReadFile("8.txt")
 	assertNoError(t, err)
 

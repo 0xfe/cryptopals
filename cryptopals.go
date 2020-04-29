@@ -264,3 +264,101 @@ func decryptAESECB(cipherText []byte, key []byte, blockSize int) ([]byte, error)
 
 	return plainText, nil
 }
+
+func encryptAESCBC(plainText []byte, key []byte, iv []byte) ([]byte, error) {
+	blockSize := 16
+	if len(key) < blockSize {
+		return nil, fmt.Errorf("key size must be %d", blockSize)
+	}
+
+	if len(iv) < blockSize {
+		return nil, fmt.Errorf("iv size must be %d", blockSize)
+	}
+
+	cipherText := make([]byte, len(plainText))
+	cipher, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize AES: %w", err)
+	}
+
+	buffer := make([]byte, blockSize)
+	lastCipherText := make([]byte, blockSize)
+	copy(lastCipherText, iv)
+	for i := 0; i < (len(plainText) / blockSize); i++ {
+		start := i * blockSize
+		end := (i + 1) * blockSize
+
+		for j := 0; j < blockSize; j++ {
+			buffer[j] = lastCipherText[j] ^ plainText[start:end][j]
+		}
+
+		cipher.Encrypt(lastCipherText, buffer)
+		copy(cipherText[start:end], lastCipherText)
+	}
+
+	return cipherText, nil
+}
+
+func decryptAESCBC(cipherText []byte, key []byte, iv []byte) ([]byte, error) {
+	blockSize := 16
+	if len(key) < blockSize {
+		return nil, fmt.Errorf("key size must be %d", blockSize)
+	}
+
+	if len(iv) < blockSize {
+		return nil, fmt.Errorf("iv size must be %d", blockSize)
+	}
+
+	cipher, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize AES: %w", err)
+	}
+
+	plainText := make([]byte, len(cipherText))
+	buffer := make([]byte, blockSize)
+	plainTextBuffer := make([]byte, blockSize)
+	lastCipherText := make([]byte, blockSize)
+	copy(lastCipherText, iv)
+	for i := 0; i < (len(plainText) / blockSize); i++ {
+		start := i * blockSize
+		end := (i + 1) * blockSize
+
+		cipher.Decrypt(buffer, cipherText[start:end])
+		for j := 0; j < blockSize; j++ {
+			plainTextBuffer[j] = lastCipherText[j] ^ buffer[j]
+		}
+
+		copy(plainText[start:end], plainTextBuffer)
+		copy(lastCipherText, cipherText[start:end])
+	}
+
+	return plainText, nil
+}
+
+func padPKCS7(plainText string, length int) (string, error) {
+	if length > 256 {
+		return "", fmt.Errorf("cannot pad length > 256")
+	}
+
+	if length == 0 {
+		return plainText, nil
+	}
+
+	textLength := len(plainText)
+	diff := length - textLength
+
+	if diff < 0 {
+		return "", fmt.Errorf("plainText longer than length")
+	}
+
+	if diff == 0 {
+		return plainText, nil
+	}
+
+	padding := make([]byte, diff)
+	for i := 0; i < diff; i++ {
+		padding[i] = byte(diff)
+	}
+
+	return plainText + string(padding), nil
+}
