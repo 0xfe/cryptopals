@@ -169,8 +169,8 @@ func TestS1C6(t *testing.T) {
 		fmt.Printf("cost: %f, key: %s\n", totalCost, string(keys))
 	}
 
-	fmt.Printf(bestPlainText)
-	fmt.Printf("\nBest key: %s, Best cost: %f\n", bestKey, bestCost)
+	fmt.Printf("Best plaintext length: %d\n", len(bestPlainText))
+	fmt.Printf("Best key: %s, Best cost: %f\n", bestKey, bestCost)
 	assertEquals(t, "Terminator X: Bring the noise", bestKey)
 }
 

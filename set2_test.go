@@ -27,7 +27,6 @@ func TestS2C10(t *testing.T) {
 
 	newPlainText, err := decryptAESCBC(cipherText, key, iv)
 	assertNoError(t, err)
-
 	assertEquals(t, string(plainText), string(newPlainText))
 
 	data, err := ioutil.ReadFile("10.txt")
