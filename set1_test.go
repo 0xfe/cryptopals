@@ -185,6 +185,7 @@ func TestS1C7(t *testing.T) {
 	plainText, err := decryptAESECB(cipherText, []byte(key), 16)
 	assertNoError(t, err)
 
+	fmt.Println(string(plainText))
 	trimmedPlaintext := strings.Trim(string(plainText), "\x04\n ")
 	re := regexp.MustCompile(`Play that funky music$`)
 	assertEquals(t, true, re.MatchString(trimmedPlaintext))

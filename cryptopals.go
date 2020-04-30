@@ -1,7 +1,6 @@
 package cryptopals
 
 import (
-	"crypto/aes"
 	"fmt"
 	"math"
 	"strconv"
@@ -222,6 +221,32 @@ func meanBlockHammingDistance(data []byte, blockSize int, opts ...map[string]str
 	return meanDistance, nil
 }
 
+// Returns the total hamming distance between each block and every other
+// block in data, given blockSize.
+func blockDistance(data []byte, blockSize int) (int, error) {
+	numBlocks := len(data) / blockSize
+
+	totalDistance := 0
+	for i := 0; i < numBlocks; i++ {
+		for j := i; j < numBlocks; j++ {
+			if i == j {
+				continue
+			}
+			first := data[i*blockSize : (i+1)*blockSize]
+			second := data[j*blockSize : (j+1)*blockSize]
+			distance, err := hamming(first, second)
+			if err != nil {
+				return 0, fmt.Errorf("could not compute hamming distance: %w", err)
+			}
+
+			totalDistance += distance
+
+		}
+	}
+
+	return totalDistance, nil
+}
+
 // Returns the number of blocks that have a similarity score under minSimilarity. The score
 // is the hamming distance between the blocks.
 func numSimilarBlocks(data []byte, blockSize int, minSimilarity int) (int, error) {
@@ -247,92 +272,6 @@ func numSimilarBlocks(data []byte, blockSize int, minSimilarity int) (int, error
 	}
 
 	return count, nil
-}
-
-func decryptAESECB(cipherText []byte, key []byte, blockSize int) ([]byte, error) {
-	plainText := make([]byte, len(cipherText))
-	cipher, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("could not initialize AES: %w", err)
-	}
-
-	for i := 0; i < (len(plainText) / blockSize); i++ {
-		start := i * blockSize
-		end := (i + 1) * blockSize
-		cipher.Decrypt(plainText[start:end], cipherText[start:end])
-	}
-
-	return plainText, nil
-}
-
-func encryptAESCBC(plainText []byte, key []byte, iv []byte) ([]byte, error) {
-	blockSize := 16
-	if len(key) < blockSize {
-		return nil, fmt.Errorf("key size must be %d", blockSize)
-	}
-
-	if len(iv) < blockSize {
-		return nil, fmt.Errorf("iv size must be %d", blockSize)
-	}
-
-	cipherText := make([]byte, len(plainText))
-	cipher, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("could not initialize AES: %w", err)
-	}
-
-	buffer := make([]byte, blockSize)
-	lastCipherText := make([]byte, blockSize)
-	copy(lastCipherText, iv)
-	for i := 0; i < (len(plainText) / blockSize); i++ {
-		start := i * blockSize
-		end := (i + 1) * blockSize
-
-		for j := 0; j < blockSize; j++ {
-			buffer[j] = lastCipherText[j] ^ plainText[start:end][j]
-		}
-
-		cipher.Encrypt(lastCipherText, buffer)
-		copy(cipherText[start:end], lastCipherText)
-	}
-
-	return cipherText, nil
-}
-
-func decryptAESCBC(cipherText []byte, key []byte, iv []byte) ([]byte, error) {
-	blockSize := 16
-	if len(key) < blockSize {
-		return nil, fmt.Errorf("key size must be %d", blockSize)
-	}
-
-	if len(iv) < blockSize {
-		return nil, fmt.Errorf("iv size must be %d", blockSize)
-	}
-
-	cipher, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("could not initialize AES: %w", err)
-	}
-
-	plainText := make([]byte, len(cipherText))
-	buffer := make([]byte, blockSize)
-	plainTextBuffer := make([]byte, blockSize)
-	lastCipherText := make([]byte, blockSize)
-	copy(lastCipherText, iv)
-	for i := 0; i < (len(plainText) / blockSize); i++ {
-		start := i * blockSize
-		end := (i + 1) * blockSize
-
-		cipher.Decrypt(buffer, cipherText[start:end])
-		for j := 0; j < blockSize; j++ {
-			plainTextBuffer[j] = lastCipherText[j] ^ buffer[j]
-		}
-
-		copy(plainText[start:end], plainTextBuffer)
-		copy(lastCipherText, cipherText[start:end])
-	}
-
-	return plainText, nil
 }
 
 func padPKCS7(plainText string, length int) (string, error) {

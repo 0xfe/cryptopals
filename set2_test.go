@@ -1,11 +1,15 @@
 package cryptopals
 
 import (
+	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestS2C9(t *testing.T) {
@@ -39,4 +43,40 @@ func TestS2C10(t *testing.T) {
 	trimmedPlaintext := strings.Trim(string(plainText), "\x04\n ")
 	re := regexp.MustCompile(`Play that funky music$`)
 	assertEquals(t, true, re.MatchString(trimmedPlaintext))
+}
+
+func TestECBEncryptDecrypt(t *testing.T) {
+	plainText := make([]byte, 16*100)
+	_, err := rand.Read(plainText)
+	assertNoError(t, err)
+	key := make([]byte, 16)
+	_, err = rand.Read(key)
+	assertNoError(t, err)
+
+	cipherText, err := encryptAESECB(plainText, key, 16)
+	assertNoError(t, err)
+
+	newPlainText, err := decryptAESECB(cipherText, key, 16)
+	assertNoError(t, err)
+
+	assertEquals(t, true, bytes.Equal(plainText, newPlainText))
+}
+
+func TestS2C11(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	plainText, err := ioutil.ReadFile("S2C11.txt")
+	assertNoError(t, err)
+
+	cipherText, err := encryptAESRandom(plainText)
+	assertNoError(t, err)
+
+	similarity, err := numSimilarBlocks(cipherText, 16, 0)
+	assertNoError(t, err)
+
+	// If there are any similar blo
+	if similarity > 0 {
+		fmt.Println(similarity, "ECB")
+	} else {
+		fmt.Println(similarity, "CBC")
+	}
 }
