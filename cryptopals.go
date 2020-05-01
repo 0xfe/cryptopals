@@ -223,10 +223,10 @@ func meanBlockHammingDistance(data []byte, blockSize int, opts ...map[string]str
 
 // Returns the total hamming distance between each block and every other
 // block in data, given blockSize.
-func blockDistance(data []byte, blockSize int) (int, error) {
+func blockDistance(data []byte, blockSize int) (float64, error) {
 	numBlocks := len(data) / blockSize
 
-	totalDistance := 0
+	totalDistance := float64(0)
 	for i := 0; i < numBlocks; i++ {
 		for j := i; j < numBlocks; j++ {
 			if i == j {
@@ -239,12 +239,11 @@ func blockDistance(data []byte, blockSize int) (int, error) {
 				return 0, fmt.Errorf("could not compute hamming distance: %w", err)
 			}
 
-			totalDistance += distance
-
+			totalDistance += math.Pow(float64(distance)/float64(blockSize), 2)
 		}
 	}
 
-	return totalDistance, nil
+	return math.Sqrt(totalDistance), nil
 }
 
 // Returns the number of blocks that have a similarity score under minSimilarity. The score
@@ -274,9 +273,9 @@ func numSimilarBlocks(data []byte, blockSize int, minSimilarity int) (int, error
 	return count, nil
 }
 
-func padPKCS7(plainText string, length int) (string, error) {
+func padPKCS7Bytes(plainText []byte, length int) ([]byte, error) {
 	if length > 256 {
-		return "", fmt.Errorf("cannot pad length > 256")
+		return nil, fmt.Errorf("cannot pad length > 256")
 	}
 
 	if length == 0 {
@@ -287,7 +286,7 @@ func padPKCS7(plainText string, length int) (string, error) {
 	diff := length - textLength
 
 	if diff < 0 {
-		return "", fmt.Errorf("plainText longer than length")
+		return nil, fmt.Errorf("plainText longer than length")
 	}
 
 	if diff == 0 {
@@ -299,5 +298,52 @@ func padPKCS7(plainText string, length int) (string, error) {
 		padding[i] = byte(diff)
 	}
 
-	return plainText + string(padding), nil
+	return append(plainText, padding...), nil
+}
+
+func padPKCS7ToBlockSize(data []byte, blockSize int) ([]byte, error) {
+	length := len(data)
+	if length%blockSize == 0 {
+		return data, nil
+	}
+
+	diff := blockSize - length%blockSize
+	padding := make([]byte, diff)
+	for i := 0; i < diff; i++ {
+		padding[i] = byte(diff)
+	}
+
+	return append(data, padding...), nil
+}
+
+func padPKCS7(plainText string, length int) (string, error) {
+	padded, err := padPKCS7Bytes([]byte(plainText), length)
+	return string(padded), err
+}
+
+func detectBlockSize(data []byte) (int, error) {
+	bestBlockSize := 0
+
+	for i := 4; i <= 40; i++ {
+		// maxBlocks := (len(data) / i) - 2
+		// distance, err := meanBlockHammingDistance(data, i, map[string]string{
+		// "maxBlocks": fmt.Sprintf("%d", maxBlocks),
+		// })
+		distance, err := numSimilarBlocks(data, i, 4)
+		fmt.Println(i, distance)
+		if err != nil {
+			return 0, fmt.Errorf("could not calculate block distance: %w", err)
+		}
+
+		// Pick the largest block size with similar blocks. This is due to aliasing
+		// effects of similarity. E.g., block size 16 with 1 similar block will have
+		// block size 8 with 2 similar blocks.
+		//
+		// Fixme: use square for similar block size
+		if distance > 0 {
+			bestBlockSize = i
+		}
+	}
+
+	return bestBlockSize, nil
 }

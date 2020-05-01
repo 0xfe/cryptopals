@@ -1,8 +1,10 @@
 package cryptopals
 
 import (
+	"bytes"
 	"crypto/aes"
 	"fmt"
+	"log"
 	"math/rand"
 )
 
@@ -11,6 +13,10 @@ func encryptAESECB(plainText []byte, key []byte, blockSize int) ([]byte, error) 
 	cipher, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize AES: %w", err)
+	}
+
+	if len(plainText)%blockSize > 0 {
+		log.Printf("WARN: plainText (%d) is not a multiple of blockSize (%d)", len(plainText), blockSize)
 	}
 
 	for i := 0; i < (len(plainText) / blockSize); i++ {
@@ -159,4 +165,32 @@ func encryptAESRandom(plainText []byte) ([]byte, error) {
 	}
 
 	return cipherText, nil
+}
+
+type encryptor func([]byte) ([]byte, error)
+
+// This function determines if "func f encryptor" below is an ECB encryptor, and
+// returns the ECB block size, if true. Expects that encryptor f uses a stable key
+// and pads input.
+func detectAESECB(f encryptor) (bool, int, error) {
+	plainText := []byte("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
+	cipherText, err := f(plainText)
+	if err != nil {
+		return false, 0, fmt.Errorf("could not encrypt: %w", err)
+	}
+
+	newPlainText := []byte(plainText)
+	for blockSize := 1; blockSize <= 64; blockSize++ {
+		newPlainText = append([]byte("A"), newPlainText...)
+		newCipherText, err := f(newPlainText)
+		if err != nil {
+			return false, 0, fmt.Errorf("could not encrypt: %w", err)
+		}
+
+		if bytes.Equal(cipherText[:blockSize], newCipherText[2*blockSize:3*blockSize]) {
+			return true, blockSize, nil
+		}
+	}
+
+	return false, 0, nil
 }
