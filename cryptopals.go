@@ -316,6 +316,34 @@ func padPKCS7ToBlockSize(data []byte, blockSize int) ([]byte, error) {
 	return append(data, padding...), nil
 }
 
+func unpadPKCS7(data []byte) ([]byte, error) {
+	length := len(data)
+
+	// Assume that the last byte was a padding byte
+	paddingByte := data[length-1]
+	count := byte(0)
+
+	if paddingByte == 0 {
+		return data, nil
+	}
+
+	for i := length - 1; i >= 0; i-- {
+		if data[i] == paddingByte {
+			count++
+			if count > paddingByte {
+				return data, nil
+			}
+		} else {
+			if count == paddingByte {
+				return data[:i+1], nil
+			}
+			return nil, fmt.Errorf("invalid padding byte: %d, count: %d", paddingByte, count)
+		}
+	}
+
+	return data, nil
+}
+
 func padPKCS7(plainText string, length int) (string, error) {
 	padded, err := padPKCS7Bytes([]byte(plainText), length)
 	return string(padded), err
@@ -346,4 +374,39 @@ func detectBlockSize(data []byte) (int, error) {
 	}
 
 	return bestBlockSize, nil
+}
+
+func parseCookie(cookie string) (map[string]string, error) {
+	parts := strings.Split(cookie, "&")
+	cookieMap := map[string]string{}
+	for _, part := range parts {
+		subParts := strings.Split(part, "=")
+		if len(subParts) != 2 {
+			return nil, fmt.Errorf("Invalid cookie part %s in %s", part, cookie)
+		}
+
+		cookieMap[strings.TrimSpace(subParts[0])] = subParts[1]
+	}
+
+	return cookieMap, nil
+}
+
+func encodeCookie(cookie map[string]string, order []string) string {
+	cookies := []string{}
+	for _, k := range order {
+		cookies = append(cookies, fmt.Sprintf("%s=%s", sanitizeCookieValue(k), sanitizeCookieValue(cookie[k])))
+	}
+
+	return strings.Join(cookies, "&")
+}
+
+func sanitizeCookieValue(val string) string {
+	sanitizedString := ""
+	for _, c := range val {
+		if c != '&' && c != '=' {
+			sanitizedString += string(c)
+		}
+	}
+
+	return sanitizedString
 }

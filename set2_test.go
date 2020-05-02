@@ -164,3 +164,107 @@ func TestS2C12(t *testing.T) {
 	fmt.Println(string(crackedSecret))
 	assertEquals(t, bytes.Equal(secret, crackedSecret[:len(secret)]), true)
 }
+
+func TestCookieParsing(t *testing.T) {
+	cookie, err := parseCookie("foo=bar&baz=qux&zap=zazzle")
+	assertNoError(t, err)
+	assertEquals(t, "qux", cookie["baz"])
+
+	cookie, err = parseCookie("foo=bar&baz&=qux&zap=zazzle")
+	assertHasError(t, err)
+
+	cookie, err = parseCookie("foo =bar&baz=qux&zap=zazzle")
+	assertNoError(t, err)
+	assertEquals(t, "bar", cookie["foo"])
+
+	sanitized := sanitizeCookieValue("fo==obar&&boo=baz&hello")
+	assertEquals(t, "foobarboobazhello", sanitized)
+}
+
+func TestS2C13(t *testing.T) {
+	profileFor := func(email string) string {
+		profile := map[string]string{
+			"email": email,
+			"uid":   "10",
+			"role":  "user",
+		}
+
+		return encodeCookie(profile, []string{"email", "uid", "role"})
+	}
+	assertEquals(t, "email=mo@mo.town&uid=10&role=user", profileFor("mo@mo.town"))
+
+	rand.Seed(time.Now().UnixNano())
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	assertNoError(t, err)
+
+	encrypt := func(plainText []byte) ([]byte, error) {
+		newPlainText, err := padPKCS7ToBlockSize(plainText, 16)
+		if err != nil {
+			return nil, fmt.Errorf("could not PKCS7 pad: %w", err)
+		}
+
+		cipherText, err := encryptAESECB(newPlainText, key, 16)
+		if err != nil {
+			return nil, fmt.Errorf("could not ECB encrypt: %w", err)
+		}
+
+		return cipherText, nil
+	}
+
+	decrypt := func(cipherText []byte) ([]byte, error) {
+		plainText, err := decryptAESECB(cipherText, key, 16)
+		if err != nil {
+			return nil, fmt.Errorf("could not ECB decrypt: %w", err)
+		}
+
+		newPlainText, err := unpadPKCS7(plainText)
+		if err != nil {
+			return nil, fmt.Errorf("could not PKCS7 pad: %w", err)
+		}
+
+		return newPlainText, nil
+	}
+
+	// Verify that encrypt/decrypt works correctly
+	plainText := []byte(profileFor("foo@bar.com"))
+	cipherText, err := encrypt(plainText)
+	assertNoError(t, err)
+
+	newPlainText, err := decrypt(cipherText)
+	assertNoError(t, err)
+	assertTrue(t, bytes.Equal(plainText, newPlainText))
+
+	// Verify that parseCookie works correctly
+	profile, err := parseCookie(string(newPlainText))
+	assertNoError(t, err)
+
+	assertEquals(t, profile["email"], "foo@bar.com")
+	assertEquals(t, profile["uid"], "10")
+	assertEquals(t, profile["role"], "user")
+
+	// Construct email to push role to new independent block
+	plainText = []byte(profileFor("foo@bar.com012345678901234567"))
+	cipherText, err = encrypt(plainText)
+	assertNoError(t, err)
+	assertEquals(t, 64, len(cipherText))
+
+	// Verify that last block is just "user" (role)
+	userRoleCipherText, err := encrypt([]byte("user"))
+	assertNoError(t, err)
+	assertTrue(t, bytes.Equal(userRoleCipherText, cipherText[48:]))
+
+	// Create an encrypted block with the contents "admin"
+	adminRoleCipherText, err := encrypt([]byte("admin"))
+	assertNoError(t, err)
+
+	// Finally, replace the "user" block with the "admin" block
+	finalCipherText := append(cipherText[:48], adminRoleCipherText...)
+	finalPlainText, err := decrypt(finalCipherText)
+
+	// Verify that the final cipher text is a user with the admin role
+	finalProfile, err := parseCookie(string(finalPlainText))
+	assertNoError(t, err)
+	fmt.Println(finalProfile)
+	assertEquals(t, "admin", finalProfile["role"])
+}
