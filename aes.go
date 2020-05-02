@@ -179,6 +179,8 @@ func detectAESECB(f encryptor) (bool, int, error) {
 		return false, 0, fmt.Errorf("could not encrypt: %w", err)
 	}
 
+	length := len(cipherText)
+
 	newPlainText := []byte(plainText)
 	for blockSize := 1; blockSize <= 64; blockSize++ {
 		newPlainText = append([]byte("A"), newPlainText...)
@@ -187,7 +189,7 @@ func detectAESECB(f encryptor) (bool, int, error) {
 			return false, 0, fmt.Errorf("could not encrypt: %w", err)
 		}
 
-		if bytes.Equal(cipherText[:blockSize], newCipherText[2*blockSize:3*blockSize]) {
+		if bytes.Equal(cipherText[length-blockSize:], newCipherText[len(newCipherText)-blockSize:]) {
 			return true, blockSize, nil
 		}
 	}

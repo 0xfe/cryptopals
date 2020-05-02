@@ -96,6 +96,7 @@ func TestS2C12(t *testing.T) {
 	secret, err := base64.StdEncoding.DecodeString(string(secretData))
 	assertNoError(t, err)
 
+	// Encryption oracle
 	encrypt := func(plainText []byte) ([]byte, error) {
 		newPlainText := append(plainText, secret...)
 		newPlainText, err = padPKCS7ToBlockSize(newPlainText, 16)
@@ -267,4 +268,62 @@ func TestS2C13(t *testing.T) {
 	assertNoError(t, err)
 	fmt.Println(finalProfile)
 	assertEquals(t, "admin", finalProfile["role"])
+}
+
+func TestS2C14(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	assertNoError(t, err)
+
+	// Use the same target bytes as C12
+	secretData, err := ioutil.ReadFile("12.txt")
+	assertNoError(t, err)
+
+	secret, err := base64.StdEncoding.DecodeString(string(secretData))
+	assertNoError(t, err)
+
+	numBytes := rand.Intn(16) + 1
+	randomPrefix := make([]byte, numBytes)
+	_, err = rand.Read(randomPrefix)
+	assertNoError(t, err)
+
+	// Encryption oracle
+	encrypt := func(plainText []byte) ([]byte, error) {
+		newPlainText := append(randomPrefix, append(plainText, secret...)...)
+		newPlainText, err = padPKCS7ToBlockSize(newPlainText, 16)
+		if err != nil {
+			return nil, fmt.Errorf("could not PKCS7 pad: %w", err)
+		}
+
+		cipherText, err := encryptAESECB(newPlainText, key, 16)
+		if err != nil {
+			return nil, fmt.Errorf("could not ECB encrypt: %w", err)
+		}
+
+		return cipherText, nil
+	}
+
+	isECB, blockSize, err := detectAESECB(encrypt)
+	assertNoError(t, err)
+	assertEquals(t, true, isECB)
+	assertEquals(t, 16, blockSize)
+
+	cipherText, err := encrypt([]byte{})
+	assertNoError(t, err)
+	paddedCipherTextLen := len(cipherText)
+
+	data := make([]byte, 0, blockSize)
+	for i := 0; i < blockSize; i++ {
+		data = append(data, 'A')
+		cipherText, err := encrypt(data)
+		assertNoError(t, err)
+
+		if len(cipherText) != paddedCipherTextLen {
+			fmt.Println("Found boundary at:", i, "new size", len(cipherText))
+			break
+		}
+		fmt.Println(len(cipherText), paddedCipherTextLen)
+	}
+
 }
