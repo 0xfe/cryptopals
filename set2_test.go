@@ -117,50 +117,12 @@ func TestS2C12(t *testing.T) {
 	assertEquals(t, true, isECB)
 	assertEquals(t, 16, blockSize)
 
-	// Crack ECB byte-at-a-time
-	crackedSecret := []byte{}
-	crack := func(blockSize, maxLen int) bool {
-		if len(crackedSecret) > maxLen {
-			return false
-		}
-
-		// Allocate enough room to crack up to maxLen bytes
-		prefixLen := maxLen - (len(crackedSecret) % maxLen) - 1
-		prefix := make([]byte, prefixLen, maxLen)
-		for i := 0; i < len(prefix); i++ {
-			prefix[i] = 'A'
-		}
-
-		// Encrypt data prefixed by 1-fewer byte than needed
-		cipherPrefix, err := encrypt(prefix)
-		assertNoError(t, err)
-
-		// Append what we've cracked so far
-		prefix = append(prefix, crackedSecret...)
-
-		// Lengthen prefix to make it maxLen bytes
-		prefix = append(prefix, '0')
-		for testByte := byte(0); testByte < 255; testByte++ {
-			prefix[maxLen-1] = testByte
-			cipherText, err := encrypt(prefix)
-			assertNoError(t, err)
-
-			if bytes.Equal(cipherPrefix[:maxLen], cipherText[:maxLen]) {
-				crackedSecret = append(crackedSecret, testByte)
-				return true
-			}
-		}
-
-		return false
-	}
-
 	// Figure out length of secret
 	cipherText, err := encrypt([]byte{})
 	assertNoError(t, err)
 
-	// Start crackin'
-	for crack(blockSize, len(cipherText)) {
-	}
+	crackedSecret, err := crackAESECB(encrypt, len(cipherText))
+	assertNoError(t, err)
 
 	fmt.Println(string(crackedSecret))
 	assertEquals(t, bytes.Equal(secret, crackedSecret[:len(secret)]), true)
@@ -283,7 +245,7 @@ func TestS2C14(t *testing.T) {
 	secret, err := base64.StdEncoding.DecodeString(string(secretData))
 	assertNoError(t, err)
 
-	numBytes := rand.Intn(16) + 1
+	numBytes := rand.Intn(10) + 1
 	randomPrefix := make([]byte, numBytes)
 	_, err = rand.Read(randomPrefix)
 	assertNoError(t, err)
@@ -309,21 +271,27 @@ func TestS2C14(t *testing.T) {
 	assertEquals(t, true, isECB)
 	assertEquals(t, 16, blockSize)
 
-	cipherText, err := encrypt([]byte{})
+	// Determine length of random text
+	randomTextLen := 0
+	plainText := make([]byte, 0, blockSize)
+	cipherText, err := encrypt(plainText)
 	assertNoError(t, err)
-	paddedCipherTextLen := len(cipherText)
-
-	data := make([]byte, 0, blockSize)
-	for i := 0; i < blockSize; i++ {
-		data = append(data, 'A')
-		cipherText, err := encrypt(data)
+	for i := 1; i <= blockSize; i++ {
+		plainText = append(plainText, '\x00')
+		cipherBlock, err := encrypt(plainText)
 		assertNoError(t, err)
-
-		if len(cipherText) != paddedCipherTextLen {
-			fmt.Println("Found boundary at:", i, "new size", len(cipherText))
+		if bytes.Equal(cipherBlock[:blockSize], cipherText[:blockSize]) {
+			randomTextLen = blockSize - (i - 1)
 			break
 		}
-		fmt.Println(len(cipherText), paddedCipherTextLen)
+
+		cipherText = cipherBlock
 	}
 
+	spacing := blockSize - randomTextLen
+
+	// Crack ECB byte-at-a-time
+	crackedSecret, err := crackAESECB(encrypt, (blockSize*11)+spacing)
+	assertNoError(t, err)
+	fmt.Println(string(crackedSecret))
 }

@@ -196,3 +196,52 @@ func detectAESECB(f encryptor) (bool, int, error) {
 
 	return false, 0, nil
 }
+
+// Perform byte-at-a-time cracking on ECB function "encrypt" up to
+// maxLen bytes. maxLen must be a multiple of the block size.
+func crackAESECB(encrypt encryptor, maxLen int) ([]byte, error) {
+	// Crack ECB byte-at-a-time
+	crackedSecret := []byte{}
+	// Allocate enough room to crack up to maxLen bytes
+	prefix := make([]byte, maxLen)
+
+	// Crack secret one byte at a time and stop when no more plainText
+	// can be recovered.
+	for match := true; match; {
+		match = false
+		if len(crackedSecret) > maxLen {
+			return crackedSecret, nil
+		}
+
+		// Prefix should be just one byte less than the length
+		prefixLen := maxLen - (len(crackedSecret) % maxLen) - 1
+		prefix = prefix[:prefixLen]
+
+		// Encrypt data prefixed by 1-fewer byte than needed
+		cipherPrefix, err := encrypt(prefix)
+		if err != nil {
+			return nil, fmt.Errorf("could not encrypt prefix: %w", err)
+		}
+
+		// Append what we've cracked so far
+		prefix = append(prefix, crackedSecret...)
+
+		// Lengthen prefix to make it maxLen bytes
+		prefix = append(prefix, '\x00')
+		for testByte := byte(0); testByte < 255; testByte++ {
+			prefix[maxLen-1] = testByte
+			cipherText, err := encrypt(prefix)
+			if err != nil {
+				return nil, fmt.Errorf("could not encrypt prefix: %w", err)
+			}
+
+			if bytes.Equal(cipherPrefix[:maxLen], cipherText[:maxLen]) {
+				crackedSecret = append(crackedSecret, testByte)
+				match = true
+				break
+			}
+		}
+	}
+
+	return crackedSecret, nil
+}
