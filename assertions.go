@@ -20,6 +20,12 @@ func assertTrue(t *testing.T, got bool) {
 	}
 }
 
+func assertFalse(t *testing.T, got bool) {
+	if got {
+		t.Errorf("want false, got true")
+	}
+}
+
 func assertEquals(t *testing.T, want interface{}, got interface{}) {
 	if want != got {
 		t.Errorf("want: %v, got %v", want, got)

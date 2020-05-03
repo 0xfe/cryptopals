@@ -322,3 +322,95 @@ func TestS2C15(t *testing.T) {
 	text, err = unpadPKCS7(paddedText)
 	assertNoError(t, err)
 }
+
+func TestS2C16(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	assertNoError(t, err)
+
+	iv := make([]byte, 16)
+	_, err = rand.Read(iv)
+	assertNoError(t, err)
+
+	encrypt := func(input []byte) ([]byte, error) {
+		pre := []byte("comment1=cooking%20MCs;userdata=")
+		post := []byte(";comment2=%20like%20a%20pound%20of%20bacon")
+
+		sanitizedInput := []byte{}
+		for _, c := range input {
+			if c != ';' && c != '=' {
+				sanitizedInput = append(sanitizedInput, c)
+			}
+		}
+
+		plainText := append(pre, append(sanitizedInput, post...)...)
+		plainText, err = padPKCS7ToBlockSize(plainText, 16)
+		if err != nil {
+			return nil, fmt.Errorf("could not PKCS7 pad: %w", err)
+		}
+
+		cipherText, err := encryptAESCBC(plainText, key, iv)
+		if err != nil {
+			return nil, fmt.Errorf("could not CBC encrypt: %w", err)
+		}
+
+		return cipherText, nil
+	}
+
+	decrypt := func(cipherText []byte) ([]byte, error) {
+		plainText, err := decryptAESCBC(cipherText, key, iv)
+		if err != nil {
+			return nil, fmt.Errorf("could not CBC decrypt: %w", err)
+		}
+
+		plainText, err = unpadPKCS7(plainText)
+		if err != nil {
+			return nil, fmt.Errorf("could not PKCS7 unpad: %w", err)
+		}
+
+		return plainText, nil
+	}
+
+	isCracked := func(cipherText []byte) bool {
+		plainText, err := decrypt(cipherText)
+		assertNoError(t, err)
+
+		match, err := regexp.MatchString(";admin=true;", string(plainText))
+		assertNoError(t, err)
+
+		return match
+	}
+
+	cipherText, err := encrypt([]byte(";admin=true;"))
+	assertNoError(t, err)
+	assertFalse(t, isCracked(cipherText))
+
+	zeroBlock := make([]byte, 16)
+	adminBlock := []byte(";admin=true;")
+
+	// Flips a single bit in data, indexed by byteIndex and bitIndex
+	flipBit := func(data []byte, byteIndex int, bitIndex int) {
+		data[byteIndex] ^= byte((1 << 7) >> bitIndex)
+	}
+
+	// Flip the bits for ; and = so that the sanitizer passes them through.
+	flipBit(adminBlock, 0, 7)
+	flipBit(adminBlock, 6, 7)
+	flipBit(adminBlock, 11, 7)
+
+	// Construct cipher text with zero block and our custom admin block. The idea
+	// is to flip bits in the zero block, such that they are carried over to the
+	// admin block.
+	cipherText, err = encrypt(append(zeroBlock, adminBlock...))
+	assertNoError(t, err)
+
+	// Flip bits in the zero block of cipherText. This completely scrambles the zero block
+	// but only propagates single-bit errors to the next block(s).
+	flipBit(cipherText, 32, 7)
+	flipBit(cipherText, 32+6, 7)
+	flipBit(cipherText, 32+11, 7)
+
+	// Verify that we now have ";admin=true" in our cipherText
+	assertTrue(t, isCracked(cipherText))
+}
