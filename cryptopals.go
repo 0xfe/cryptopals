@@ -304,7 +304,12 @@ func padPKCS7Bytes(plainText []byte, length int) ([]byte, error) {
 func padPKCS7ToBlockSize(data []byte, blockSize int) ([]byte, error) {
 	length := len(data)
 	if length%blockSize == 0 {
-		return data, nil
+		padding := make([]byte, blockSize)
+		for i := 0; i < blockSize; i++ {
+			padding[i] = byte(blockSize)
+		}
+
+		return append(data, padding...), nil
 	}
 
 	diff := blockSize - length%blockSize
@@ -331,7 +336,7 @@ func unpadPKCS7(data []byte) ([]byte, error) {
 		if data[i] == paddingByte {
 			count++
 			if count > paddingByte {
-				return data, nil
+				return nil, fmt.Errorf("invalid padding byte: %d, count: %d", paddingByte, count)
 			}
 		} else {
 			if count == paddingByte {

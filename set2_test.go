@@ -295,3 +295,30 @@ func TestS2C14(t *testing.T) {
 	assertNoError(t, err)
 	fmt.Println(string(crackedSecret))
 }
+
+func TestS2C15(t *testing.T) {
+	text, err := unpadPKCS7([]byte("ICE ICE BABY\x04\x04\x04\x04"))
+	assertNoError(t, err)
+	assertTrue(t, bytes.Equal([]byte("ICE ICE BABY"), text))
+
+	text, err = unpadPKCS7([]byte("ICE ICE BABY\x05\x05\x05\x05"))
+	assertHasError(t, err)
+
+	text, err = unpadPKCS7([]byte("ICE ICE BABY\x01\x02\x03\x04"))
+	assertHasError(t, err)
+
+	text, err = unpadPKCS7([]byte("ICE ICE BABY\x03\x03\x03\x03"))
+	assertHasError(t, err)
+
+	// Should fail because PKCS7 requires that text of blockSize length have
+	// an extra block added.
+	text, err = unpadPKCS7([]byte("0123456789ABCDEF"))
+	assertHasError(t, err)
+
+	// Pad to verify that unpadding works correctly
+	paddedText, err := padPKCS7ToBlockSize([]byte("0123456789ABCDEF"), 16)
+	assertNoError(t, err)
+	assertEquals(t, 32, len(paddedText))
+	text, err = unpadPKCS7(paddedText)
+	assertNoError(t, err)
+}

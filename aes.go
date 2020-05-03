@@ -173,7 +173,7 @@ type encryptor func([]byte) ([]byte, error)
 // returns the ECB block size, if true. Expects that encryptor f uses a stable key
 // and pads input.
 func detectAESECB(f encryptor) (bool, int, error) {
-	plainText := []byte("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
+	plainText := []byte("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDE")
 	cipherText, err := f(plainText)
 	if err != nil {
 		return false, 0, fmt.Errorf("could not encrypt: %w", err)
