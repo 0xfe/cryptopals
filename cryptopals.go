@@ -329,7 +329,11 @@ func unpadPKCS7(data []byte) ([]byte, error) {
 	count := byte(0)
 
 	if paddingByte == 0 {
-		return data, nil
+		return nil, fmt.Errorf("invalid zero padding byte: %d", paddingByte)
+	}
+
+	if paddingByte > 16 {
+		return nil, fmt.Errorf("invalid padding byte: %d", paddingByte)
 	}
 
 	for i := length - 1; i >= 0; i-- {
