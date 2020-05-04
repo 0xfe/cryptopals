@@ -1,6 +1,7 @@
 package cryptopals
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -11,8 +12,10 @@ import (
 )
 
 func TestS3C17(t *testing.T) {
+	blockSize := 16
 	rand.Seed(time.Now().UnixNano())
 
+	// Read random strings from file
 	data, err := ioutil.ReadFile("17.txt")
 	assertNoError(t, err)
 
@@ -24,10 +27,12 @@ func TestS3C17(t *testing.T) {
 		randomStrings[i] = randomString
 	}
 
+	// Create a new AES key for this challenge
 	key := make([]byte, 16)
 	_, err = rand.Read(key)
 	assertNoError(t, err)
 
+	// Encrypt one of the strings at random using the above key, and return cipherText + iv
 	encrypt := func() (cipherText []byte, iv []byte) {
 		index := rand.Intn(10)
 		fmt.Println("Sample", index)
@@ -45,6 +50,7 @@ func TestS3C17(t *testing.T) {
 		return cipherText, iv
 	}
 
+	// Decrypt cipherText, attempt to unpad and return false if padding is invalid.
 	decrypt := func(cipherText []byte, iv []byte) bool {
 		plainText, err := decryptAESCBC(cipherText, key, iv)
 		assertNoError(t, err)
@@ -54,33 +60,61 @@ func TestS3C17(t *testing.T) {
 			return false
 		}
 
-		fmt.Println(plainText, string(plainText))
-
 		return true
 	}
 
-	crack := func(sample []byte, iv []byte) {
-		crackedData := make([]byte, len(sample))
-		buffer := make([]byte, len(sample))
-		copy(buffer, sample)
-		blockSize := 16
-		for block := (len(sample) / blockSize) - 1; block >= 0; block-- {
-			for byteIndex := blockSize - 1; byteIndex >= 0; byteIndex-- {
-				i := (block * blockSize) + byteIndex
-				prevI := ((block - 1) * blockSize) + byteIndex
-				for j := 0; j < 256; j++ {
-					buffer[prevI] = byte(j)
-					if decrypt(buffer[block*blockSize:], buffer[(block-1)*blockSize:block*blockSize]) {
-						crackedData[i] = 0x01 ^ byte(j) ^ sample[prevI]
-						fmt.Println(i, prevI, j, crackedData[i], string(crackedData[i]))
+	// Attempt to decrypt one block using a CBC padding oracle attack. This
+	// relies on the leak from PKCS7 padding errors.
+	//
+	// Turns out you only need the previous block to crack a block. A CBC
+	// block is a function of a key and the previous block.
+	crack := func(block []byte, prevBlock []byte) []byte {
+		// We're going to mutate the previous block, so make a copy
+		prevBuffer := make([]byte, len(block))
+		copy(prevBuffer, prevBlock)
+
+		crackedData := make([]byte, len(block))
+		for i := blockSize - 1; i >= 0; i-- {
+			paddingByte := byte(blockSize - i)
+			for j := 0; j < 256; j++ {
+				prevBuffer[i] = byte(j)
+				if decrypt(block, prevBuffer) {
+					crackedByte := paddingByte ^ byte(j) ^ prevBlock[i]
+					if byte(j) != prevBlock[i] || paddingByte != 1 {
+						crackedData[i] = crackedByte
+
+						// Update previous buffer for next padding byte
+						if paddingByte < byte(blockSize) {
+							for k := i; k < blockSize; k++ {
+								prevBuffer[k] = (paddingByte + 1) ^ prevBlock[k] ^ crackedData[k]
+							}
+						}
+						break
 					}
 				}
-				break
 			}
-			break
 		}
+
+		return crackedData
 	}
 
+	// Okay, let's try it out. Get an encrypted token.
 	sample, iv := encrypt()
-	crack(sample, iv)
+
+	// Decrypt it block-at-a-time
+	plainText := []byte{}
+	for i := 0; i < len(sample)/blockSize; i++ {
+		curBlock := sample[i*blockSize : (i+1)*blockSize]
+		prevBlock := iv
+		if i > 0 {
+			prevBlock = sample[(i-1)*blockSize : i*blockSize]
+		}
+		plainText = append(plainText, crack(curBlock, prevBlock)...)
+	}
+
+	// Unpad and display
+	plainText, err = unpadPKCS7(plainText)
+	fmt.Println(string(plainText))
+	assertNoError(t, err)
+	assertTrue(t, bytes.Equal(plainText[:5], []byte("00000")))
 }
