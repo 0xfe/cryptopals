@@ -64,7 +64,7 @@ func TestECBEncryptDecrypt(t *testing.T) {
 
 func TestS2C11(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	plainText, err := ioutil.ReadFile("S2C11.txt")
+	plainText, err := ioutil.ReadFile("11.txt")
 	assertNoError(t, err)
 
 	cipherText, err := encryptAESRandom(plainText)

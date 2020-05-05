@@ -3,6 +3,7 @@ package cryptopals
 import (
 	"bytes"
 	"crypto/aes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"math/rand"
@@ -112,6 +113,48 @@ func decryptAESCBC(cipherText []byte, key []byte, iv []byte) ([]byte, error) {
 	}
 
 	return plainText, nil
+}
+
+func encryptAESCTR(plainText []byte, key []byte, nonce uint64) ([]byte, error) {
+	blockSize := 16
+	blockCount := uint64(0)
+	length := len(plainText)
+
+	cipher, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize AES: %w", err)
+	}
+
+	// CTR mode does not need padding, but we add it anyway to simplify
+	// the loop below. The extra padding length is sliced off of the cipherText
+	// before returning.
+	plainText, err = padPKCS7ToBlockSize(plainText, blockSize)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't pad plainText: %w", err)
+	}
+
+	cipherText := make([]byte, len(plainText))
+	ctr := make([]byte, 16)
+	keyStream := make([]byte, 16)
+
+	for i := 0; i < len(plainText); i += blockSize {
+		binary.LittleEndian.PutUint64(ctr[:8], nonce)
+		binary.LittleEndian.PutUint64(ctr[8:], blockCount)
+		cipher.Encrypt(keyStream, ctr)
+
+		for j := 0; j < blockSize; j++ {
+			cipherText[i+j] = plainText[i+j] ^ keyStream[j]
+		}
+
+		blockCount++
+	}
+
+	// Silce padding off of cipherText before returning
+	return cipherText[:length], nil
+}
+
+func decryptAESCTR(cipherText []byte, key []byte, nonce uint64) ([]byte, error) {
+	return encryptAESCTR(cipherText, key, nonce)
 }
 
 // Encrypts plainText under an unknown key, using ECB 50% of the time

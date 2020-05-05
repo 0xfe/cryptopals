@@ -118,3 +118,21 @@ func TestS3C17(t *testing.T) {
 	assertNoError(t, err)
 	assertTrue(t, bytes.Equal(plainText[:5], []byte("00000")))
 }
+
+func TestS3C18(t *testing.T) {
+	key := []byte("YELLOW SUBMARINE")
+	cipherText, err := encryptAESCTR([]byte("YELLOW SUBMARINE01234567ABCDEF"), key, 0)
+	assertNoError(t, err)
+
+	plainText, err := decryptAESCTR(cipherText, key, 0)
+	assertNoError(t, err)
+	assertTrue(t, bytes.Equal(plainText, []byte("YELLOW SUBMARINE01234567ABCDEF")))
+
+	testString := "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ=="
+	cipherText, err = base64.StdEncoding.DecodeString(testString)
+	assertNoError(t, err)
+
+	plainText, err = decryptAESCTR(cipherText, key, 0)
+	assertNoError(t, err)
+	assertTrue(t, bytes.Equal(plainText, []byte("Yo, VIP Let's kick it Ice, Ice, baby Ice, Ice, baby ")))
+}
