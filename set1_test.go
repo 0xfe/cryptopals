@@ -141,6 +141,8 @@ func TestS1C6(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		keySize := distances[i].keySize
 
+		// Create keySize buckets (km) -- each bucket represents N%keysize'th
+		// character of the ciphertext
 		km := make([][]byte, keySize)
 		for j := range km {
 			km[j] = make([]byte, (len(cipherText)/keySize)+1)

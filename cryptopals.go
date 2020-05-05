@@ -112,7 +112,8 @@ func crackXORByteCost(cipherText []byte) (key byte, cost float64, plainText stri
 	bestCost := float64(len(cipherText) * 100)
 	var bestString string
 	var bestKey byte
-	for _, key := range "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 0123456789.,';+=!?/\":<>\\|][{}_`~@#$%^&*()" {
+	for i := 0; i < 256; i++ {
+		key := byte(i)
 		plainText := decryptXORByte(cipherText, byte(key))
 		cost := math.Sqrt(calcStringCost(plainText))
 
@@ -419,3 +420,6 @@ func sanitizeCookieValue(val string) string {
 
 	return sanitizedString
 }
+
+// Common Trigrams:
+// the, and, tha, ent, ing, ion, tio, for, nde, has, nce, edt, tis, oft, sth, men.

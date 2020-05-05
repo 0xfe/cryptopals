@@ -136,3 +136,61 @@ func TestS3C18(t *testing.T) {
 	assertNoError(t, err)
 	assertTrue(t, bytes.Equal(plainText, []byte("Yo, VIP Let's kick it Ice, Ice, baby Ice, Ice, baby ")))
 }
+
+func TestS3C19(t *testing.T) {
+	data, err := ioutil.ReadFile("19.txt")
+	assertNoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	cipherTexts := make([][]byte, len(lines))
+
+	minLen := 500
+	for i, line := range lines {
+		cipherText, err := base64.StdEncoding.DecodeString(line)
+		assertNoError(t, err)
+		cipherTexts[i] = cipherText
+		if len(cipherText) < minLen {
+			minLen = len(cipherText)
+		}
+	}
+
+	// Crack as if repeating-key-XOR. To do that we create one long string
+	// concatening the cipher texts trimmed to the minimum length.
+	cipherText := []byte{}
+	for _, line := range cipherTexts {
+		cipherText = append(cipherText, line[:minLen]...)
+	}
+
+	// Create keySize buckets (km) -- each bucket represents N%keysize'th
+	// character of the ciphertext
+	keySize := minLen
+	km := make([][]byte, keySize)
+	for j := range km {
+		km[j] = make([]byte, (len(cipherText)/keySize)+1)
+	}
+
+	// Bucket the cipherText into km
+	for j := range cipherText {
+		bucket := j % keySize
+		loc := j / keySize
+		km[bucket][loc] = byte(cipherText[j])
+	}
+
+	// Crack each bucket independently
+	keys := []byte{}
+	totalCost := float64(0)
+	for j := range km {
+		block := km[j]
+		key, cost, _ := crackXORByteCost(block)
+		keys = append(keys, key)
+		totalCost += cost
+	}
+
+	plainText := decryptRepeatingKeyXOR(cipherText, keys)
+	assertTrue(t, bytes.Equal(plainText[:minLen], []byte("i have met them at c")))
+}
+
+func TestS3C20(t *testing.T) {
+	// We effectively solved 19 as 20
+	TestS3C19(t)
+}
