@@ -194,3 +194,21 @@ func TestS3C20(t *testing.T) {
 	// We effectively solved 19 as 20
 	TestS3C19(t)
 }
+
+func TestS3C21(t *testing.T) {
+	twister := NewMT19937Twister()
+	twister.Seed(42)
+
+	fmt.Println(twister)
+
+	rand1 := twister.Read()
+	rand2 := twister.Read()
+	rand3 := twister.Read()
+
+	assertEquals(t, uint32(468307300), rand1)
+	assertEquals(t, uint32(2413964465), rand2)
+	assertEquals(t, uint32(3077182046), rand3)
+
+	fmt.Println("First three numbers:", rand1, rand2, rand3)
+	fmt.Println(twister)
+}
