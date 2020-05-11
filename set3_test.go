@@ -212,3 +212,39 @@ func TestS3C21(t *testing.T) {
 	fmt.Println("First three numbers:", rand1, rand2, rand3)
 	fmt.Println(twister)
 }
+
+func TestS3C22(t *testing.T) {
+	unixTime := func() uint32 {
+		return uint32(time.Now().Unix() & 0xFFFFFFFF)
+	}
+
+	randomInt := func(delay1, delay2 time.Duration) uint32 {
+		time.Sleep(delay1)
+		rng := NewMT19937Twister()
+		rng.Seed(unixTime())
+		time.Sleep(delay2)
+
+		return rng.Read()
+	}
+
+	fmt.Println("Generating random value..")
+	val := randomInt(time.Second, time.Second)
+	fmt.Println("Val:", val)
+
+	// Find seed from val
+
+	now := unixTime()
+	found := false
+	for ts := now; ts > now-5000; ts-- {
+		rng := NewMT19937Twister()
+		rng.Seed(ts)
+		testVal := rng.Read()
+		if testVal == val {
+			fmt.Println("Found seed:", ts)
+			found = true
+			break
+		}
+	}
+
+	assertTrue(t, found)
+}
