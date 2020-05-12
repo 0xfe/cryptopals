@@ -1,6 +1,9 @@
 package cryptopals
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // Implementation of Mersenne Twister from: https://en.wikipedia.org/wiki/Mersenne_Twister
 
@@ -90,18 +93,49 @@ func (t *Twister) Seed(seed uint32) {
 	}
 }
 
+// SetMT sets a custom internal state for PRNG
+func (t *Twister) SetMT(mt []uint32) {
+	t.MT = mt
+}
+
+// Temper diffuses the bits in "y"
+func (t *Twister) temper(y uint32) uint32 {
+	y ^= (y >> t.u) & t.d // op1
+	y ^= (y << t.s) & t.b // op2
+	y ^= (y << t.t) & t.c // op3
+	y ^= y >> t.l         // op4
+	return y
+}
+
+// Untemper reconstructs "y" from diffused/tempered value
+func (t *Twister) untemper(y uint32) uint32 {
+	y ^= y >> t.l         // reverse op4
+	y ^= (y << t.t) & t.c // reverse op3
+
+	// reverse op2
+	shiftMask := uint32(math.Pow(2, 7) - 1)
+	for i := 0; i < 4; i++ {
+		b := t.b & uint32(shiftMask<<uint32(t.s*(uint32(i)+1)))
+		y ^= ((y << t.s) & b)
+	}
+
+	// reverse op1
+	for i := 0; i < 3; i++ {
+		y ^= (y >> t.u)
+	}
+
+	return y
+}
+
 // Read returns a random int32
 func (t *Twister) Read() uint32 {
 	if t.index == t.n {
 		t.Twist()
 	}
 
-	y := t.MT[t.index]
-	y ^= (y >> t.u) & t.d
-	y ^= (y << t.s) & t.b
-	y ^= (y << t.t) & t.c
-	y ^= y >> t.l
-
+	// Tap a value from the internal state matrix, and "temper" it. Tempering
+	// diffuses the value across the bit space.
+	y := t.temper(t.MT[t.index])
 	t.index++
 	return y
 }

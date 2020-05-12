@@ -3,8 +3,10 @@ package cryptopals
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"strings"
 	"testing"
@@ -247,4 +249,133 @@ func TestS3C22(t *testing.T) {
 	}
 
 	assertTrue(t, found)
+}
+
+func TestS3C23(t *testing.T) {
+	rng := NewMT19937Twister()
+	rng.Seed(42)
+
+	// Test temper/untemper
+	val := rng.Read()
+	fmt.Printf("Original      : %032b %d\n", val, val)
+	tempered := rng.temper(val)
+	fmt.Printf("Tempered      : %032b %d\n", tempered, tempered)
+	untempered := rng.untemper(tempered)
+	fmt.Printf("Untempered    : %032b %d\n", untempered, untempered)
+	assertEquals(t, val, untempered)
+
+	rng = NewMT19937Twister()
+	rng.Seed(uint32(time.Now().UnixNano()))
+
+	// Tap internal state of PRNG
+	MT := make([]uint32, 624)
+	for i := 0; i < 624; i++ {
+		MT[i] = rng.untemper(rng.Read())
+	}
+
+	// Create a new PRNG and splice in reconstructed state
+	newRng := NewMT19937Twister()
+	newRng.SetMT(MT)
+
+	// Verify that both PRNGs now generate the same future values
+	assertEquals(t, rng.Read(), newRng.Read())
+}
+
+func TestS3C24(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+
+	encrypt := func(plainText []byte, seed uint16) []byte {
+		rng := NewMT19937Twister()
+		rng.Seed(uint32(seed))
+
+		cipherText := make([]byte, len(plainText))
+		keyStream := make([]byte, 4)
+		j := 4 // pointer into keyStream. Start past end.
+		for i := 0; i < len(plainText); i++ {
+			// Read new value from RNG and update keystream.
+			if j >= 4 {
+				val := rng.Read()
+				binary.LittleEndian.PutUint32(keyStream, val)
+				j = 0
+			}
+
+			// XOR keystream position with plaintext
+			cipherText[i] = plainText[i] ^ keyStream[j]
+			j++
+		}
+
+		return cipherText
+	}
+
+	decrypt := encrypt
+
+	// Test encryption / decryption
+	seed := uint16(time.Now().UnixNano() & 0xFFFF)
+	fmt.Printf("Seed      : %032b %d\n", seed, seed)
+	cipherText := encrypt([]byte("foobar"), seed)
+	plainText := decrypt(cipherText, seed)
+	assertTrue(t, bytes.Equal(plainText, []byte("foobar")))
+
+	// Encrypt known plaintext with random prefix
+	numChars := rand.Intn(20) + 1
+	randChars := make([]byte, numChars)
+	_, err := rand.Read(randChars)
+	assertNoError(t, err)
+
+	plainText = append(randChars, []byte("AAAAAAAAAAAAAA")...)
+	cipherText = encrypt(plainText, seed)
+
+	// Crack seed by brute-forcing all possible 16-bit seed values
+	foundSeed := uint16(0)
+	for i := uint16(0); i < math.MaxUint16; i++ {
+		pt := decrypt(cipherText, i)
+		if bytes.Contains(pt, []byte("AAAAAAAAAAAAAA")) {
+			foundSeed = i
+			break
+		}
+	}
+
+	fmt.Println("Found seed: ", foundSeed)
+	assertEquals(t, seed, foundSeed)
+
+	// Generate random password reset token
+	genToken := func(seedWithTS bool) string {
+		token := make([]byte, 22)
+		_, err := rand.Read(token)
+		assertNoError(t, err)
+		copy(token[:6], []byte("token="))
+
+		seed := uint16(time.Now().Unix())
+		if !seedWithTS {
+			seed = uint16(rand.Int31())
+		}
+
+		encryptedToken := encrypt(token, seed)
+		stringToken := base64.StdEncoding.EncodeToString(encryptedToken)
+		fmt.Println("Generated token: ", stringToken)
+		return stringToken
+	}
+
+	isMT19937Token := func(token string) bool {
+		encryptedToken, err := base64.StdEncoding.DecodeString(token)
+		assertNoError(t, err)
+
+		now := uint16(time.Now().Unix())
+		for ts := now; ts > now-60; ts-- {
+			plainText := decrypt(encryptedToken, ts)
+			if bytes.Equal(plainText[:6], []byte("token=")) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// Generate a token seeded with the current time stamp
+	token := genToken(true)
+	assertTrue(t, isMT19937Token(token))
+
+	// Generate a token seeded with Golang's RNG
+	token = genToken(false)
+	assertFalse(t, isMT19937Token(token))
 }
