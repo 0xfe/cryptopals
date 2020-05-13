@@ -130,3 +130,77 @@ func TestS4C26(t *testing.T) {
 	flipBit(cipherText, 32+11, 7)
 	assertTrue(t, isCracked(cipherText))
 }
+
+func TestS4C27(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	assertNoError(t, err)
+
+	// Make IV the same as the key. This challenge demonstrates why it's
+	// bad to set the IV to the key.
+	iv := make([]byte, 16)
+	copy(iv, key)
+
+	fmt.Println("Random key `:", key)
+
+	encrypt := func(input []byte) ([]byte, error) {
+		sanitizedInput := []byte{}
+		for _, c := range input {
+			if c != ';' && c != '=' {
+				sanitizedInput = append(sanitizedInput, c)
+			}
+		}
+
+		cipherText, err := encryptAESCBC(sanitizedInput, key, iv)
+		if err != nil {
+			return nil, fmt.Errorf("could not CBC encrypt: %w", err)
+		}
+
+		return cipherText, nil
+	}
+
+	decrypt := func(cipherText []byte) ([]byte, error) {
+		plainText, err := decryptAESCBC(cipherText, key, iv)
+		if err != nil {
+			return nil, fmt.Errorf("could not CBC decrypt: %w", err)
+		}
+
+		for _, c := range plainText {
+			if c > 127 {
+				return nil, fmt.Errorf("Bad chars found: %s", plainText)
+			}
+		}
+
+		return plainText, nil
+	}
+
+	// Encrypt random plaintext to get 3 cipher text blocks: C1, C2, and C3.
+	cipherText, err := encrypt([]byte("jsdlknm0adddddh0f7h34huijnefoasuidhfoiusdnfoudnf"))
+	assertNoError(t, err)
+
+	// Zero out second block of ciphertext
+	copy(cipherText[16:32], make([]byte, 16))
+
+	// Copy first block into third block.
+	copy(cipherText[32:], cipherText[0:16])
+
+	// Decrypt to get plain text blocks: P1, P2, and P3
+	_, err = decrypt(cipherText)
+	assertHasError(t, err)
+
+	// Extract plainText from error message (Remove "Bad chars found: ")
+	plainText := []byte(fmt.Sprintf("%s", err)[17:])
+
+	// P1 ^ P3 should be the key. This is because:
+	// P1 = IV ^ C1
+	// P3 = 0 ^ C1
+	// P1 ^ P3 = IV
+	// and IV = key!
+	crackedKey := make([]byte, 16)
+	for i, c := range plainText[:16] {
+		crackedKey[i] = c ^ plainText[32+i]
+	}
+	fmt.Println("Cracked key:", crackedKey)
+	assertTrue(t, bytes.Equal(key, crackedKey))
+}
