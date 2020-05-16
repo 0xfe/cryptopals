@@ -221,3 +221,29 @@ func block(dig *digest, p []byte) {
 
 	dig.h[0], dig.h[1], dig.h[2], dig.h[3], dig.h[4] = h0, h1, h2, h3, h4
 }
+
+func HMAC(msg []byte, key []byte) []byte {
+	blockSize := 64
+
+	if len(key) > blockSize {
+		// Key too big, hash it down to a smaller key
+		tmpKey := Sum(key)
+		key = tmpKey[:]
+	}
+
+	if len(key) < blockSize {
+		// Pad key on right with zeros up to blockSize
+		key = append(key, make([]byte, blockSize-len(key))...)
+	}
+
+	outerKey := make([]byte, blockSize)
+	innerKey := make([]byte, blockSize)
+	for i := 0; i < blockSize; i++ {
+		outerKey[i] = key[i] ^ 0x5c
+		innerKey[i] = key[i] ^ 0x36
+	}
+
+	innerHash := Sum(append(innerKey, msg...))
+	hash := Sum(append(outerKey, innerHash[:]...))
+	return hash[:]
+}

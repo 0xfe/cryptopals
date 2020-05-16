@@ -465,3 +465,124 @@ func TestS4C30(t *testing.T) {
 	fmt.Println("Found hash", hex.EncodeToString(foundMD), "for", foundString)
 	assertTrue(t, found)
 }
+
+// This test covers both challenges 31 and 32 -- the only difference is
+// the duration of the sleep.
+//
+// Disabled because reeeeeeealllly slow!
+func TestS4C31and32(t *testing.T) {
+	DISABLED := true
+
+	if DISABLED {
+		fmt.Println("Not running disabled tests S4C31 and S4C32. Very slooooow!")
+		return
+	}
+
+	fmt.Println("NOTE: This attack is CPU intensive and sensitive to scheduling jitter.")
+	fmt.Println("DON'T TOUCH YOUR COMPUTER WHILE THIS IS RUNNING")
+
+	// Verifies that sig is the right HMAC for the contents of fileName.
+	verifyFile := func(fileName string, sig []byte) (bool, error) {
+		key := []byte("foobar") // secret
+		data, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			return false, fmt.Errorf("could not read file: %w", err)
+		}
+
+		hmac := sha1.HMAC(data, key)
+		match := true
+		for i := 0; i < len(sig); i++ {
+			// Fail early if sig does not match hmac. (This is the security loophole
+			// we're trying to exploit.)
+			if hmac[i] != sig[i] {
+				match = false
+				break
+			}
+
+			// Throw in an intentional sleep to simulate a cache miss
+			time.Sleep(2 * time.Millisecond)
+		}
+
+		return match, nil
+	}
+
+	// Actual signature of the file -- we only use this for testing.
+	actualSig, err := hex.DecodeString("344824b1ba82ae76b6628217cc411ab4ad4cbe58")
+	assertNoError(t, err)
+
+	// Returns the mean duration of N calls to verfiyFile with testSig
+	measure := func(testSig []byte, iterations int) (bool, float64) {
+		meanDuration := float64(0)
+		match := false
+		for i := 0; i < iterations; i++ {
+			ts := time.Now().UnixNano()
+			match, err := verifyFile("31.txt", testSig)
+			assertNoError(t, err)
+
+			if match {
+				break
+			}
+
+			// Calculate a rolling mean
+			meanDuration += float64(time.Now().UnixNano() - ts)
+			meanDuration /= 2
+		}
+
+		return match, meanDuration
+	}
+
+	fmt.Println("Expecting:", actualSig)
+	fmt.Printf("Cracked:    ")
+
+	hmacLen := 20                       // SHA-1 HMAC length
+	crackedSig := make([]byte, hmacLen) // Our cracked signature
+	iterations := 50                    // Caclualte mean of this many runs (higher for more time precision)
+	found := false
+
+	// Maintain an array of mean durations for each attempted byte
+	durations := make([]float64, 256)
+	for i := 0; i < hmacLen; i++ {
+		meanDuration := float64(0)
+
+		// Try every byte from 0 - 255 in position i
+		for j := 0; j < 256; j++ {
+			crackedSig[i] = byte(j)
+			found, duration := measure(crackedSig, iterations)
+			if found {
+				break
+			}
+
+			// Store the mean duration for this byte
+			durations[j] = duration
+
+			// Calculate rolling mean of all bytes
+			meanDuration += duration
+			meanDuration /= 2
+		}
+
+		if found {
+			break
+		}
+
+		// Find the byte with the largest deviance from the mean
+		maxDeviance := float64(0)
+		bestByte := byte(0)
+		for j := 0; j < 256; j++ {
+			deviance := durations[j] - meanDuration
+			if deviance > maxDeviance {
+				maxDeviance = deviance
+				bestByte = byte(j)
+			}
+		}
+
+		fmt.Printf("%v ", bestByte)
+		crackedSig[i] = bestByte
+	}
+
+	if found {
+		fmt.Printf("- Match!\n")
+	}
+
+	assertTrue(t, found)
+	assertTrue(t, bytes.Equal(actualSig, crackedSig))
+}
