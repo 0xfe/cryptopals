@@ -1,33 +1,36 @@
 package cryptopals
 
-import "testing"
+import (
+	"runtime/debug"
+	"testing"
+)
 
 func assertNoError(t *testing.T, err error) {
 	if err != nil {
-		t.Errorf("want no error, got error: %v", err)
+		t.Fatalf("want no error, got error: %v\n%s", err, string(debug.Stack()))
 	}
 }
 
 func assertHasError(t *testing.T, err error) {
 	if err == nil {
-		t.Errorf("want error, got no error")
+		t.Fatalf("want error, got no error\n%s", string(debug.Stack()))
 	}
 }
 
 func assertTrue(t *testing.T, got bool) {
 	if !got {
-		t.Errorf("want true, got false")
+		t.Fatalf("want true, got false\n%s", string(debug.Stack()))
 	}
 }
 
 func assertFalse(t *testing.T, got bool) {
 	if got {
-		t.Errorf("want false, got true")
+		t.Fatalf("want false, got true\n%s", string(debug.Stack()))
 	}
 }
 
 func assertEquals(t *testing.T, want interface{}, got interface{}) {
 	if want != got {
-		t.Errorf("want: %v, got %v", want, got)
+		t.Fatalf("want: %v, got %v\n%s", want, got, string(debug.Stack()))
 	}
 }
