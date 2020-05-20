@@ -421,5 +421,9 @@ func sanitizeCookieValue(val string) string {
 	return sanitizedString
 }
 
-// Common Trigrams:
-// the, and, tha, ent, ing, ion, tio, for, nde, has, nce, edt, tis, oft, sth, men.
+func zeroPad(s string) string {
+	if len(s)%2 == 1 {
+		return "0" + s
+	}
+	return s
+}

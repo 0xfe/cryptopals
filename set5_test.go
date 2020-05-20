@@ -376,3 +376,325 @@ func TestS5C34(t *testing.T) {
 	mmChan := middleMan(echoChan)
 	aliceBot(mmChan)
 }
+
+func TestS5C35(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	plainText := []byte("Hi, I'm Alice!")
+
+	type RPC struct {
+		// We have the following message codes:
+		//  Handshake, HandshakeReply
+		//  Exchange, ExchangeReply
+		//  Echo, EchoReply
+		Code   string
+		Params map[string]string
+	}
+
+	// echoBot is an encrypted echo server that uses Diffie-Hellman
+	// to negotiate a symmetric key, and then return echo replies
+	// encrypted with the key.
+	echoBot := func() chan RPC {
+		c := make(chan RPC)
+
+		// Start server
+		go func() {
+			var p *big.Int
+			var g *big.Int
+			var A *big.Int
+			var b *big.Int
+			var B *big.Int
+			var s *big.Int
+			var key []byte
+			authenticated := false
+
+			for msg := range c {
+				fmt.Println("echoBot: Received", msg.Code)
+				if msg.Code == "Handshake" {
+					fmt.Println("echoBot: Handshake", msg.Params)
+					pBytes, err := hex.DecodeString(msg.Params["p"])
+					assertNoError(t, err)
+
+					gBytes, err := hex.DecodeString(msg.Params["g"])
+					assertNoError(t, err)
+
+					p = new(big.Int).SetBytes(pBytes)
+					g = new(big.Int).SetBytes(gBytes)
+
+					c <- RPC{
+						Code: "HandshakeReply",
+					}
+				} else if msg.Code == "Exchange" {
+					ABytes, err := hex.DecodeString(msg.Params["A"])
+					assertNoError(t, err)
+
+					A = new(big.Int).SetBytes(ABytes)
+
+					b = new(big.Int).Mod(big.NewInt(rand.Int63()), p)
+					B = bigModExp(g, b, p)
+
+					s = bigModExp(A, b, p)
+					md := sha1.Sum(s.Bytes())
+					key = md[:16]
+
+					fmt.Println("echoBot key:", hex.EncodeToString(key))
+
+					c <- RPC{
+						Code: "ExchangeReply",
+						Params: map[string]string{
+							"B": zeroPad(B.Text(16)),
+						},
+					}
+
+					authenticated = true
+				} else if msg.Code == "Echo" {
+					// Echo message. Validate that we have keys.
+					assertTrue(t, authenticated)
+
+					// Decode encrypted message and IV
+					cipherTextHex, ok := msg.Params["message"]
+					assertTrue(t, ok)
+
+					cipherText, err := hex.DecodeString(cipherTextHex)
+					assertNoError(t, err)
+
+					ivHex, ok := msg.Params["iv"]
+					assertTrue(t, ok)
+
+					iv, err := hex.DecodeString(ivHex)
+					assertNoError(t, err)
+					assertEquals(t, 16, len(iv))
+
+					// Decrypt message
+					message, err := decryptAESCBC(cipherText, key, iv)
+					assertNoError(t, err)
+					unpaddedMessage, err := unpadPKCS7(message)
+					if err != nil {
+						unpaddedMessage = []byte("PADDING ERROR")
+					}
+					fmt.Println("echoBot (recv:decrypted):", string(unpaddedMessage))
+
+					// Encrypt with new IV and return to client
+					_, err = rand.Read(iv)
+					assertNoError(t, err)
+
+					cipherText, err = encryptAESCBC(message, key, iv)
+					assertNoError(t, err)
+
+					c <- RPC{
+						Code: "EchoReply",
+						Params: map[string]string{
+							"message": hex.EncodeToString(cipherText),
+							"iv":      hex.EncodeToString(iv),
+						},
+					}
+
+				}
+			}
+		}()
+
+		return c
+	}
+
+	// Middleman to inject g:
+	//
+	//   if g == 1, then B == 1, and alice's s == 1
+	//   if g == p, then B == 0, and alice's s == 0
+	//   if g == p - 1, then B == 1, and alice's s == 1
+
+	middleMan := func(echoChan chan RPC) chan RPC {
+		c := make(chan RPC)
+
+		var key []byte
+		authenticated := false
+
+		// Start server
+		go func() {
+			for msg := range c {
+				if msg.Code == "Handshake" {
+					// Parameter injection. Send "p" instead of Alice's public key "A"
+					pMinus1, ok := new(big.Int).SetString(msg.Params["p"], 16)
+					assertTrue(t, ok)
+					pMinus1 = pMinus1.Sub(pMinus1, big.NewInt(1))
+					fmt.Println("p - 1 =", len(pMinus1.Text(16)))
+
+					echoChan <- RPC{
+						Code: "Handshake",
+						Params: map[string]string{
+							"p": msg.Params["p"],
+							"g": zeroPad(pMinus1.Text(16)),
+						},
+					}
+
+					// Pass through reply
+					reply := <-echoChan
+					c <- reply
+
+					md := sha1.Sum(big.NewInt(1).Bytes())
+					key = md[:16]
+					authenticated = true
+				} else if msg.Code == "Exchange" {
+					// Pass through key exchange. Assume server has calculated key using
+					// injected g
+					echoChan <- msg
+					reply := <-echoChan
+					c <- reply
+				} else if msg.Code == "Echo" {
+					// Echo message. Validate that we have keys.
+					assertTrue(t, authenticated)
+
+					// Decode encrypted message and IV
+					cipherTextHex, ok := msg.Params["message"]
+					assertTrue(t, ok)
+
+					cipherText, err := hex.DecodeString(cipherTextHex)
+					assertNoError(t, err)
+
+					ivHex, ok := msg.Params["iv"]
+					assertTrue(t, ok)
+
+					iv, err := hex.DecodeString(ivHex)
+					assertNoError(t, err)
+					assertEquals(t, 16, len(iv))
+
+					// Decrypt message
+					message, err := decryptAESCBC(cipherText, key, iv)
+					assertNoError(t, err)
+					unpaddedMessage, err := unpadPKCS7(message)
+					assertNoError(t, err)
+					fmt.Println("middleMan (decrypted:client):", string(unpaddedMessage))
+					assertTrue(t, bytes.Equal(plainText, unpaddedMessage))
+
+					// Passthrough original message
+					echoChan <- msg
+
+					// Decrypt echoServer reply
+					reply := <-echoChan
+
+					// Decode encrypted message and IV
+					cipherTextHex, ok = reply.Params["message"]
+					assertTrue(t, ok)
+
+					cipherText, err = hex.DecodeString(cipherTextHex)
+					assertNoError(t, err)
+
+					ivHex, ok = reply.Params["iv"]
+					assertTrue(t, ok)
+
+					iv, err = hex.DecodeString(ivHex)
+					assertNoError(t, err)
+					assertEquals(t, 16, len(iv))
+
+					// Decrypt message
+					message, err = decryptAESCBC(cipherText, key, iv)
+					assertNoError(t, err)
+					unpaddedMessage, err = unpadPKCS7(message)
+					if err != nil {
+						unpaddedMessage = []byte("PADDING ERROR")
+					}
+					fmt.Println("middleMan (decrypted:echoBot):", string(unpaddedMessage))
+
+					c <- reply
+				}
+			}
+		}()
+
+		return c
+	}
+
+	aliceBot := func(echoChan chan RPC) {
+		// Generate private and public keys
+		p, ok := new(big.Int).SetString("ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca237327ffffffffffffffff", 16)
+		assertTrue(t, ok)
+		g := big.NewInt(2)
+		a := new(big.Int).Mod(big.NewInt(rand.Int63()), p)
+		A := bigModExp(g, a, p)
+
+		// Send public key (along with p and g) to Echo Server
+		echoChan <- RPC{
+			Code: "Handshake",
+			Params: map[string]string{
+				"p": p.Text(16),
+				"g": fmt.Sprintf("%02x", g.Int64()),
+			},
+		}
+
+		// Get server's public key from response
+		reply := <-echoChan
+		assertEquals(t, reply.Code, "HandshakeReply")
+
+		echoChan <- RPC{
+			Code: "Exchange",
+			Params: map[string]string{
+				"A": zeroPad(A.Text(16)),
+			},
+		}
+
+		reply = <-echoChan
+		assertEquals(t, reply.Code, "ExchangeReply")
+
+		B, ok := new(big.Int).SetString(reply.Params["B"], 16)
+		assertTrue(t, ok)
+
+		// Generate shared secret
+		s := bigModExp(B, a, p)
+		md := sha1.Sum(s.Bytes())
+		key := md[:16]
+		fmt.Println("aliceBot key:", hex.EncodeToString(key))
+
+		// Pad message and send to Echo Server
+		message, err := padPKCS7ToBlockSize(plainText, 16)
+		assertNoError(t, err)
+		iv := make([]byte, 16)
+		_, err = rand.Read(iv)
+		assertNoError(t, err)
+
+		cipherText, err := encryptAESCBC(message, key, iv)
+		assertNoError(t, err)
+
+		echoChan <- RPC{
+			Code: "Echo",
+			Params: map[string]string{
+				"message": hex.EncodeToString(cipherText),
+				"iv":      hex.EncodeToString(iv),
+			},
+		}
+
+		reply = <-echoChan
+		assertEquals(t, reply.Code, "EchoReply")
+
+		// Decode encrypted reply and IV
+		cipherTextHex, ok := reply.Params["message"]
+		assertTrue(t, ok)
+
+		cipherText, err = hex.DecodeString(cipherTextHex)
+		assertNoError(t, err)
+
+		ivHex, ok := reply.Params["iv"]
+		assertTrue(t, ok)
+
+		iv, err = hex.DecodeString(ivHex)
+		assertNoError(t, err)
+		assertEquals(t, 16, len(iv))
+
+		message, err = decryptAESCBC(cipherText, key, iv)
+		assertNoError(t, err)
+		unpaddedMessage, err := unpadPKCS7(message)
+		if err != nil {
+			unpaddedMessage = []byte("PADDING ERROR")
+		}
+
+		fmt.Println("aliceBot (recv:decrypted):", string(unpaddedMessage))
+
+		// assertTrue(t, bytes.Equal(unpaddedMessage, plainText))
+		close(echoChan)
+	}
+
+	// Verify that echoBot works alone
+	echoChan := echoBot()
+	aliceBot(echoChan)
+
+	// Verify that the middleMan can decrypt traffic
+	echoChan = echoBot()
+	mm := middleMan(echoChan)
+	aliceBot(mm)
+}
