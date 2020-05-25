@@ -2,12 +2,16 @@ package cryptopals
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"math"
 	"math/big"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -697,4 +701,132 @@ func TestS5C35(t *testing.T) {
 	echoChan = echoBot()
 	mm := middleMan(echoChan)
 	aliceBot(mm)
+}
+
+func TestS5C36(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+
+	type RPC struct {
+		// We have the following message codes:
+		//  Handshake, HandshakeReply
+		//  Exchange, ExchangeReply
+		//  Echo, EchoReply
+		Code   string
+		Params map[string]string
+	}
+
+	// Implement Secure Remote Password
+	N, ok := new(big.Int).SetString("ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca237327ffffffffffffffff", 16)
+	assertTrue(t, ok)
+	g := big.NewInt(2)
+	k := big.NewInt(3)
+
+	email := "mo@foo.bar"
+	password := "f00bar"
+
+	server := func() chan RPC {
+		salt := []byte(zeroPad(strconv.FormatInt(rand.Int63(), 16)))
+		xH := sha256.Sum256(append(salt, []byte(password)...))
+		v := bigModExp(g, new(big.Int).SetBytes(xH[:]), N)
+		b := new(big.Int).Mod(big.NewInt(rand.Int63()), N)
+		B := new(big.Int).Add(bigModExp(g, b, N), (new(big.Int).Mul(k, v)))
+
+		ch := make(chan RPC)
+
+		go func() {
+			A := new(big.Int)
+			u := new(big.Int)
+			S := new(big.Int)
+			var K []byte
+			var mac hash.Hash
+
+			for msg := range ch {
+				if msg.Code == "Handshake" {
+					ABytes, err := hex.DecodeString(msg.Params["A"])
+					assertNoError(t, err)
+					A.SetBytes(ABytes)
+					ch <- RPC{
+						Code: "HandshakeReply",
+						Params: map[string]string{
+							"salt": string(salt),
+							"B":    hex.EncodeToString(B.Bytes()),
+						},
+					}
+
+					uH := sha256.Sum256(append(ABytes, B.Bytes()...))
+					u.SetBytes(uH[:])
+
+					nbi := func() *big.Int { return new(big.Int) }
+					S = bigModExp(nbi().Mul(A, bigModExp(v, u, N)), b, N)
+					shaSum := sha256.Sum256(S.Bytes())
+					K = shaSum[:]
+				} else if msg.Code == "Message" {
+					mac = hmac.New(sha256.New, K[:])
+					mac.Write(salt)
+					body, err := hex.DecodeString(msg.Params["body"])
+					assertNoError(t, err)
+					assertTrue(t, bytes.Equal(mac.Sum(nil), body))
+
+					ch <- RPC{
+						Code: "MessageReply",
+					}
+				}
+			}
+		}()
+
+		return ch
+	}
+
+	client := func(serverChan chan RPC) {
+		I := email
+		a := new(big.Int).Mod(big.NewInt(rand.Int63()), N)
+		A := bigModExp(g, a, N)
+
+		B := new(big.Int)
+		u := new(big.Int)
+		x := new(big.Int)
+
+		serverChan <- RPC{
+			Code: "Handshake",
+			Params: map[string]string{
+				"I": I, // email, ignored
+				"A": hex.EncodeToString(A.Bytes()),
+			},
+		}
+
+		msg := <-serverChan
+		assertEquals(t, msg.Code, "HandshakeReply")
+
+		BBytes, err := hex.DecodeString(msg.Params["B"])
+		assertNoError(t, err)
+		B.SetBytes(BBytes)
+
+		uH := sha256.Sum256(append(A.Bytes(), BBytes...))
+		u.SetBytes(uH[:])
+
+		xH := sha256.Sum256(append([]byte(msg.Params["salt"]), []byte(password)...))
+		x.SetBytes(xH[:])
+
+		nbi := func() *big.Int { return new(big.Int) }
+		S := bigModExp(
+			nbi().Sub(B, nbi().Mul(k, bigModExp(g, x, N))),
+			nbi().Add(a, nbi().Mul(u, x)),
+			N)
+
+		K := sha256.Sum256(S.Bytes())
+
+		mac := hmac.New(sha256.New, K[:])
+		mac.Write([]byte(msg.Params["salt"]))
+		serverChan <- RPC{
+			Code: "Message",
+			Params: map[string]string{
+				"body": hex.EncodeToString(mac.Sum(nil)),
+			},
+		}
+
+		msg = <-serverChan
+		assertEquals(t, "MessageReply", msg.Code)
+	}
+
+	client(server())
 }

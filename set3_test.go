@@ -79,13 +79,25 @@ func TestS3C17(t *testing.T) {
 		for i := blockSize - 1; i >= 0; i-- {
 			paddingByte := byte(blockSize - i)
 			for j := 0; j < 256; j++ {
+				// Set the cipherText for the previous block at position i to j, trying
+				// every value from 0 - 255.
 				prevBuffer[i] = byte(j)
 				if decrypt(block, prevBuffer) {
+					// If we're here, then there's no padding error, which means that the
+					// byte at position i == paddingByte (according to PKCS7 padding rules.)
+					//
+					// Because:
+					//   CBC decryption = prevEncryptedBlock[i] XOR curPlaintextBlock[i], and
+					//   curPlaintextBlock[i] = paddingByte (which we just discovered)
+					//   originalPlaintextBlock[i] = paddingByte ^ j ^ prevEncryptedBlock[i]
+
 					crackedByte := paddingByte ^ byte(j) ^ prevBlock[i]
 					if byte(j) != prevBlock[i] || paddingByte != 1 {
 						crackedData[i] = crackedByte
 
-						// Update previous buffer for next padding byte
+						// Update previous buffer for next padding byte. When going from 1-byte
+						// padding to 2-byte padding (or 2 to 3, 3 to 4, etc.), update all the 0x01 padding
+						// values to 0x02 (or 0x02 to 0x03, etc.)
 						if paddingByte < byte(blockSize) {
 							for k := i; k < blockSize; k++ {
 								prevBuffer[k] = (paddingByte + 1) ^ prevBlock[k] ^ crackedData[k]

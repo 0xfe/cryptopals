@@ -363,10 +363,6 @@ func detectBlockSize(data []byte) (int, error) {
 	bestBlockSize := 0
 
 	for i := 4; i <= 40; i++ {
-		// maxBlocks := (len(data) / i) - 2
-		// distance, err := meanBlockHammingDistance(data, i, map[string]string{
-		// "maxBlocks": fmt.Sprintf("%d", maxBlocks),
-		// })
 		distance, err := numSimilarBlocks(data, i, 4)
 		fmt.Println(i, distance)
 		if err != nil {
