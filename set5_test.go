@@ -900,3 +900,83 @@ func TestS5C39(t *testing.T) {
 
 	assertEquals(t, textMessage, plainText)
 }
+
+func TestS5C40(t *testing.T) {
+	cubeRoot := func(i *big.Int) (cbrt *big.Int, rem *big.Int) {
+		var (
+			n0    = big.NewInt(0)
+			n1    = big.NewInt(1)
+			n2    = big.NewInt(2)
+			n3    = big.NewInt(3)
+			guess = new(big.Int).Div(i, n2)
+			dx    = new(big.Int)
+			absDx = new(big.Int)
+			minDx = new(big.Int).Abs(i)
+			step  = new(big.Int).Abs(new(big.Int).Div(guess, n2))
+			cube  = new(big.Int)
+		)
+
+		for {
+			cube.Exp(guess, n3, nil)
+			dx.Sub(i, cube)
+			cmp := dx.Cmp(n0)
+			if cmp == 0 {
+				return guess, n0
+			}
+
+			absDx.Abs(dx)
+			switch absDx.Cmp(minDx) {
+			case -1:
+				minDx.Set(absDx)
+			case 0:
+				return guess, dx
+			}
+
+			switch cmp {
+			case -1:
+				guess.Sub(guess, step)
+			case +1:
+				guess.Add(guess, step)
+			}
+
+			step.Div(step, n2)
+			if step.Cmp(n0) == 0 {
+				step.Set(n1)
+			}
+		}
+	}
+
+	keyPair1 := RSAGenKeyPair()
+	keyPair2 := RSAGenKeyPair()
+	keyPair3 := RSAGenKeyPair()
+
+	message := big.NewInt(42)
+	c1 := RSAEncrypt(message, keyPair1.Pub)
+	c2 := RSAEncrypt(message, keyPair2.Pub)
+	c3 := RSAEncrypt(message, keyPair3.Pub)
+
+	// Use Chinese-Remainder-Theorem to decrypt message from the
+	// three ciphertexts (which are residuals mod their respective public keys)
+	ms1 := new(big.Int).Mul(keyPair2.Pub.N, keyPair3.Pub.N)
+	ms2 := new(big.Int).Mul(keyPair1.Pub.N, keyPair3.Pub.N)
+	ms3 := new(big.Int).Mul(keyPair1.Pub.N, keyPair2.Pub.N)
+
+	i1 := new(big.Int).ModInverse(ms1, keyPair1.Pub.N)
+	i2 := new(big.Int).ModInverse(ms2, keyPair2.Pub.N)
+	i3 := new(big.Int).ModInverse(ms3, keyPair3.Pub.N)
+
+	m1 := new(big.Int).Mul(c1, new(big.Int).Mul(ms1, i1))
+	m2 := new(big.Int).Mul(c2, new(big.Int).Mul(ms2, i2))
+	m3 := new(big.Int).Mul(c3, new(big.Int).Mul(ms3, i3))
+
+	sum := new(big.Int).Add(m1, new(big.Int).Add(m2, m3))
+	n123 := new(big.Int).Mul(keyPair1.Pub.N, new(big.Int).Mul(keyPair2.Pub.N, keyPair3.Pub.N))
+
+	// This is unnecessary, we can just use sum, but whatever...
+	final := new(big.Int).Mod(sum, n123)
+
+	// Since the keyPair.Pub.v is always 3, the original plaintext is
+	// the cube root of final (or sum)
+	plainVal, _ := cubeRoot(final)
+	assertEquals(t, plainVal.Int64(), message.Int64())
+}
