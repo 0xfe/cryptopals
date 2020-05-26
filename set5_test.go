@@ -16,26 +16,6 @@ import (
 	"time"
 )
 
-func bigModExp(base *big.Int, exponent *big.Int, modulus *big.Int) *big.Int {
-	if modulus.Cmp(big.NewInt(1)) == 0 {
-		return big.NewInt(0)
-	}
-
-	if exponent.Cmp(big.NewInt(0)) == 0 {
-		return big.NewInt(1)
-	}
-
-	result := bigModExp(base, new(big.Int).Div(exponent, big.NewInt(2)), modulus)
-	result = new(big.Int).Mod(new(big.Int).Mul(result, result), modulus)
-
-	// if exponent & 1 != 0, means, if exponent % 2 != 0, means, if exponent is not divisible by 2
-	if new(big.Int).Mod(exponent, big.NewInt(2)).Int64() != 0 {
-		return new(big.Int).Mod(new(big.Int).Mul(new(big.Int).Mod(base, modulus), result), modulus)
-	}
-
-	return new(big.Int).Mod(result, modulus)
-}
-
 func TestS5C33(t *testing.T) {
 	// Implement Diffe-Hellman key exchange
 	rand.Seed(time.Now().UnixNano())

@@ -3,6 +3,7 @@ package cryptopals
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -417,9 +418,31 @@ func sanitizeCookieValue(val string) string {
 	return sanitizedString
 }
 
+// Zero-pad hex strings to even-valued length
 func zeroPad(s string) string {
 	if len(s)%2 == 1 {
 		return "0" + s
 	}
 	return s
+}
+
+// Modular exponentiation for Big Ints
+func bigModExp(base *big.Int, exponent *big.Int, modulus *big.Int) *big.Int {
+	if modulus.Cmp(big.NewInt(1)) == 0 {
+		return big.NewInt(0)
+	}
+
+	if exponent.Cmp(big.NewInt(0)) == 0 {
+		return big.NewInt(1)
+	}
+
+	result := bigModExp(base, new(big.Int).Div(exponent, big.NewInt(2)), modulus)
+	result = new(big.Int).Mod(new(big.Int).Mul(result, result), modulus)
+
+	// if exponent & 1 != 0, means, if exponent % 2 != 0, means, if exponent is not divisible by 2
+	if new(big.Int).Mod(exponent, big.NewInt(2)).Int64() != 0 {
+		return new(big.Int).Mod(new(big.Int).Mul(new(big.Int).Mod(base, modulus), result), modulus)
+	}
+
+	return new(big.Int).Mod(result, modulus)
 }
