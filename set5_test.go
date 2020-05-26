@@ -875,3 +875,28 @@ func TestS5C37(t *testing.T) {
 	client(SRPServer(N, g, k, password), new(big.Int).Mul(big.NewInt(3), N), big.NewInt(0))
 	client(SRPServer(N, g, k, password), new(big.Int).Mul(big.NewInt(4), N), big.NewInt(0))
 }
+
+func TestS5C39(t *testing.T) {
+	// Test RSA implementation with small and big numbers. Requires "OpenSSL" to
+	// be in the path for prime number generation.
+	keyPair := RSAGenKeyPair()
+	fmt.Printf("KeyPair:\nN: %+v\npub: %+v\npriv: %+v\n", keyPair.Pub.N, keyPair.Pub.v, keyPair.Priv.v)
+
+	message := big.NewInt(42)
+
+	cipherValue := RSAEncrypt(message, keyPair.Pub)
+	fmt.Println("Encrypted Value:", cipherValue.Text(10))
+
+	plainValue := RSADecrypt(cipherValue, keyPair.Priv)
+	fmt.Println("Decrypted Value:", plainValue.Text(10))
+	assertEquals(t, message.Int64(), plainValue.Int64())
+
+	textMessage := "foobar"
+	cipherText := RSAEncryptString(textMessage, keyPair.Pub)
+	fmt.Println("Encrypted Value:", cipherText)
+
+	plainText := RSADecryptString(cipherText, keyPair.Priv)
+	fmt.Println("Decrypted Value:", plainText)
+
+	assertEquals(t, textMessage, plainText)
+}
