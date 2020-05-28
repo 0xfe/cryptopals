@@ -1,7 +1,6 @@
 package cryptopals
 
 import (
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -37,8 +36,8 @@ func TestS6C41(t *testing.T) {
 func TestS6C42(t *testing.T) {
 	keyPair := RSAGenKeyPair()
 
-	s, err := RSASignMessage([]byte("foobar"), keyPair.Priv)
+	sig, err := RSASignMessage([]byte("foobar"), keyPair.Priv)
 	assertNoError(t, err)
 
-	fmt.Println(hex.EncodeToString(s))
+	RSAVerifySignature([]byte("foobar"), sig, keyPair.Pub)
 }

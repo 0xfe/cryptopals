@@ -3,6 +3,7 @@ package cryptopals
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/subtle"
 	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
@@ -105,6 +106,33 @@ func RSAPad(k int, blockType byte, data []byte) []byte {
 	return paddedData
 }
 
+func RSAUnpad(paddedData []byte) []byte {
+	if paddedData[0] != 0 {
+		return nil
+	}
+
+	fillByte := byte(0)
+	if paddedData[1] == 1 {
+		fillByte = 0xff
+	}
+	if paddedData[1] == 2 {
+		panic("method not implemented: unpad blockType 2")
+	}
+	start := 0
+	for i := 2; i < len(paddedData); i++ {
+		if paddedData[i] == 0 {
+			start = i + 1
+			break
+		}
+
+		if paddedData[i] != fillByte {
+			return nil
+		}
+	}
+
+	return paddedData[start:]
+}
+
 /*
 	RSA Signatures: https://tools.ietf.org/html/rfc2313
 
@@ -138,6 +166,7 @@ type RSADigest struct {
 }
 
 func RSASignMessage(message []byte, priv *RSAKey) ([]byte, error) {
+	// Take MD5 hash of message and encode it into an ASN.1 blob
 	md := md5.Sum(message)
 	asnDigest := RSADigest{
 		DigestAlgorithm: asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 2, 5}),
@@ -152,17 +181,62 @@ func RSASignMessage(message []byte, priv *RSAKey) ([]byte, error) {
 	// Length of modulus in octets
 	k := len(priv.N.Bytes())
 
-	// Encryption Block (RFC 2313: Section 8.1)
-	eb := RSAPad(2048, 1, d)
+	// Pad and create encryption Block (RFC 2313: Section 8.1)
+	eb := RSAPad(k, 1, d)
 
-	// Octet-to-integer conversion (Section 8.2)
+	// Convert octet-string to integer (RFC 2313: Section 8.2)
 	sum := big.NewInt(0)
 	for i := 1; i <= k; i++ {
-		p := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(8*(k-i))), big.NewInt(0))
+		p := new(big.Int).Exp(big.NewInt(256), big.NewInt(int64(k-i)), big.NewInt(0))
 		sum.Add(sum, new(big.Int).Mul(p, big.NewInt(int64(eb[i-1]))))
 	}
 
-	// Encrypt
+	// Encrypt and return byte-representation of integer value
 	ed := RSAEncrypt(sum, priv).Bytes()
 	return ed, nil
+}
+
+func RSAVerifySignature(message []byte, sig []byte, pub *RSAKey) (bool, error) {
+	// Constant time integer-to-octet conversion: https://tools.ietf.org/html/rfc8017#section-4.1
+	// Copied from https://github.com/mozilla-services/go-cose/blob/master/core.go
+	i2osp := func(b *big.Int, n int) []byte {
+		octetString := b.Bytes()
+		octetStringSize := len(octetString)
+		result := make([]byte, n)
+
+		if !(b.Sign() == 0 || b.Sign() == 1) {
+			panic("i2osp error: integer must be zero or positive")
+		}
+		if n == 0 || octetStringSize > n {
+			panic("i2osp error: integer too large")
+		}
+
+		subtle.ConstantTimeCopy(1, result[:n-octetStringSize], result[:n-octetStringSize])
+		subtle.ConstantTimeCopy(1, result[n-octetStringSize:], octetString)
+		return result
+	}
+
+	// Convert sig to integer value and decrypt
+	sum := new(big.Int).SetBytes(sig)
+	ed := RSADecrypt(sum, pub)
+
+	// Convert decrypted integer to string
+	paddedData := i2osp(ed, len(pub.N.Bytes()))
+
+	// PKCS1.5 unpad
+	d := RSAUnpad(paddedData)
+	if d == nil {
+		return false, fmt.Errorf("could not unpad data")
+	}
+
+	// Extract ASN.1 blob with MD5 signature
+	asnDigest := RSADigest{}
+	_, err := asn1.Unmarshal(d, &asnDigest)
+	if err != nil {
+		return false, fmt.Errorf("could not unmarshall digest: %w", err)
+	}
+
+	// Validate that MD5 hash of message matches hash in signature
+	md := md5.Sum(message)
+	return bytes.Equal(md[:], asnDigest.Digest), nil
 }
