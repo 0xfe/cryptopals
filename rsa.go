@@ -6,7 +6,6 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"math/big"
 	"os/exec"
 )
@@ -158,9 +157,9 @@ func RSASignMessage(message []byte, priv *RSAKey) ([]byte, error) {
 
 	// Octet-to-integer conversion (Section 8.2)
 	sum := big.NewInt(0)
-	for i := 0; i < len(eb); i++ {
-		p := math.Pow(2, float64(8*(k-i)))
-		sum.Add(sum, new(big.Int).Mul(big.NewInt(int64(p)), big.NewInt(int64(eb[i]))))
+	for i := 1; i <= k; i++ {
+		p := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(8*(k-i))), big.NewInt(0))
+		sum.Add(sum, new(big.Int).Mul(p, big.NewInt(int64(eb[i-1]))))
 	}
 
 	// Encrypt
