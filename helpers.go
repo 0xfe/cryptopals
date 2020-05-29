@@ -8,15 +8,6 @@ import (
 	"strings"
 )
 
-func decryptXORByte(data []byte, key byte) []byte {
-	out := make([]byte, len(data))
-	for i := range data {
-		out[i] = data[i] ^ key
-	}
-
-	return out
-}
-
 func getExpectedFreqForChar(char byte) float64 {
 	value := float64(0.00001)
 
@@ -107,25 +98,6 @@ func calcStringScore(str []byte) float64 {
 	}
 
 	return score
-}
-
-func crackXORByteCost(cipherText []byte) (key byte, cost float64, plainText string) {
-	bestCost := float64(len(cipherText) * 100)
-	var bestString string
-	var bestKey byte
-	for i := 0; i < 256; i++ {
-		key := byte(i)
-		plainText := decryptXORByte(cipherText, byte(key))
-		cost := math.Sqrt(calcStringCost(plainText))
-
-		if cost < bestCost {
-			bestCost = cost
-			bestString = string(plainText)
-			bestKey = byte(key)
-		}
-	}
-
-	return bestKey, bestCost, bestString
 }
 
 func crackXORByteScore(cipherText []byte) (key byte, cost float64, plainText string) {

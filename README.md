@@ -14,7 +14,7 @@ These challenges have been implemented as Go tests to make it easy to explore an
 * `md4/md4.go` - A modified implementation of Golang's MD4 to tap and extract hashing state
 * `prng.go` - My implementation of the Mersenne Twister PRNG
 * `rsa.go` - My implementation of RSA (keygen, encrypt, decrypt, sign, verify, pad, unpad). Uses OpenSSL to find large random primes.
-* `cryptopals.go` - Various helper functions across the codebase: hamming distance, modular exponentiation, frequency analysis, PKCS7 padding, etc.
+* `helpers.go` - Various helper functions across the codebase: hamming distance, modular exponentiation, frequency analysis, PKCS7 padding, cube root, etc.
 
 ### To run:
 

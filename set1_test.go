@@ -5,12 +5,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
 )
 
+// The first few challenges are really straightforward, and mostly mechanical.
 func TestS1C1(t *testing.T) {
 	inHex := "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
 	wantBase64 := "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
@@ -32,6 +34,7 @@ func TestS1C2(t *testing.T) {
 	bytes2, err := hex.DecodeString(inHex2)
 	assertNoError(t, err)
 
+	// Barebones byte-at-a-time XOR decryption
 	out := make([]byte, len(bytes1))
 	for i := range bytes1 {
 		out[i] = bytes1[i] ^ bytes2[i]
@@ -39,6 +42,40 @@ func TestS1C2(t *testing.T) {
 
 	gotHex := hex.EncodeToString(out)
 	assertEquals(t, wantHex, gotHex)
+}
+
+// This method extracts the byte-at-a-time XOR decryption from the previous challenge.
+func decryptXORByte(data []byte, key byte) []byte {
+	out := make([]byte, len(data))
+	for i := range data {
+		out[i] = data[i] ^ key
+	}
+
+	return out
+}
+
+// Try to crack cipherText by XOR-decrypting using all 255 characters as the key, then
+// using a letter-frequency analysis to weed out the english text.
+func crackXORByteCost(cipherText []byte) (key byte, cost float64, plainText string) {
+	bestCost := float64(len(cipherText) * 100)
+	var bestString string
+	var bestKey byte
+	for i := 0; i < 256; i++ {
+		key := byte(i)
+		plainText := decryptXORByte(cipherText, byte(key))
+
+		// Calculate the "englishness" of plainText. Lower is better.
+		cost := math.Sqrt(calcStringCost(plainText))
+
+		// Keep track of the lowest cost.
+		if cost < bestCost {
+			bestCost = cost
+			bestString = string(plainText)
+			bestKey = byte(key)
+		}
+	}
+
+	return bestKey, bestCost, bestString
 }
 
 func TestS1C3(t *testing.T) {
@@ -80,6 +117,7 @@ func TestS1C5(t *testing.T) {
 	key := "ICE"
 	want := "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f"
 
+	// XOR encrypt plainText using a multi-byte key.
 	cipherText := make([]byte, len(plainText))
 	for i := 0; i < len(plainText); i += len(key) {
 		end := i + len(key)
@@ -103,6 +141,7 @@ func TestHammingDistance(t *testing.T) {
 	assertEquals(t, 37, distance)
 }
 
+// DistanceMap is a helper struct for sorting by hamming distance, used by the next challenge.
 type DistanceMap struct {
 	keySize  int
 	distance float64
@@ -121,6 +160,8 @@ func TestS1C6(t *testing.T) {
 	cipherText, err := base64.StdEncoding.DecodeString(string(data))
 	assertNoError(t, err)
 
+	// Calculate the mean block hamming distance for all key sizes between 2 and 40. This
+	// helps us determine the block size of the cipher text.
 	distances := DistanceList{}
 	for keySize := 2; keySize <= 40; keySize++ {
 		meanDistance, err := meanBlockHammingDistance(cipherText, keySize)
@@ -138,6 +179,7 @@ func TestS1C6(t *testing.T) {
 	bestCost := float64(100000000)
 	bestPlainText := ""
 	bestKey := ""
+	// We'll test the top three key/block sizes.
 	for i := 0; i < 3; i++ {
 		keySize := distances[i].keySize
 
