@@ -19,7 +19,7 @@ import (
 func TestS4C25(t *testing.T) {
 	// Load encrypted data, decrypt with EBC (using key from C10), and
 	// reencrypt with CTR.
-	data, err := ioutil.ReadFile("25.txt")
+	data, err := ioutil.ReadFile("data/25.txt")
 	assertNoError(t, err)
 
 	cipherText, err := base64.StdEncoding.DecodeString(string(data))
@@ -516,7 +516,7 @@ func TestS4C31and32(t *testing.T) {
 		match := false
 		for i := 0; i < iterations; i++ {
 			ts := time.Now().UnixNano()
-			match, err := verifyFile("31.txt", testSig)
+			match, err := verifyFile("data/31.txt", testSig)
 			assertNoError(t, err)
 
 			if match {

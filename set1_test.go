@@ -91,7 +91,7 @@ func TestS1C3(t *testing.T) {
 }
 
 func TestS1C4(t *testing.T) {
-	data, err := ioutil.ReadFile("4.txt")
+	data, err := ioutil.ReadFile("data/4.txt")
 	assertNoError(t, err)
 	lines := strings.Split(string(data), "\n")
 
@@ -154,7 +154,7 @@ func (d DistanceList) Swap(i, j int)      { (d)[i], (d)[j] = (d)[j], (d)[i] }
 func (d DistanceList) Less(i, j int) bool { return d[i].distance < d[j].distance }
 
 func TestS1C6(t *testing.T) {
-	data, err := ioutil.ReadFile("6.txt")
+	data, err := ioutil.ReadFile("data/6.txt")
 	assertNoError(t, err)
 
 	cipherText, err := base64.StdEncoding.DecodeString(string(data))
@@ -220,7 +220,7 @@ func TestS1C6(t *testing.T) {
 
 func TestS1C7(t *testing.T) {
 	key := "YELLOW SUBMARINE"
-	data, err := ioutil.ReadFile("7.txt")
+	data, err := ioutil.ReadFile("data/7.txt")
 	assertNoError(t, err)
 
 	cipherText, err := base64.StdEncoding.DecodeString(string(data))
@@ -236,7 +236,7 @@ func TestS1C7(t *testing.T) {
 }
 
 func TestS1C8(t *testing.T) {
-	data, err := ioutil.ReadFile("8.txt")
+	data, err := ioutil.ReadFile("data/8.txt")
 	assertNoError(t, err)
 
 	blockSize := 16

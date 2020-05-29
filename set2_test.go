@@ -33,7 +33,7 @@ func TestS2C10(t *testing.T) {
 	assertNoError(t, err)
 	assertEquals(t, string(plainText), string(newPlainText))
 
-	data, err := ioutil.ReadFile("10.txt")
+	data, err := ioutil.ReadFile("data/10.txt")
 	assertNoError(t, err)
 
 	cipherText, err = base64.StdEncoding.DecodeString(string(data))
@@ -64,7 +64,7 @@ func TestECBEncryptDecrypt(t *testing.T) {
 
 func TestS2C11(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	plainText, err := ioutil.ReadFile("11.txt")
+	plainText, err := ioutil.ReadFile("data/11.txt")
 	assertNoError(t, err)
 
 	cipherText, err := encryptAESRandom(plainText)
@@ -90,7 +90,7 @@ func TestS2C12(t *testing.T) {
 	_, err := rand.Read(key)
 	assertNoError(t, err)
 
-	secretData, err := ioutil.ReadFile("12.txt")
+	secretData, err := ioutil.ReadFile("data/12.txt")
 	assertNoError(t, err)
 
 	secret, err := base64.StdEncoding.DecodeString(string(secretData))
@@ -239,7 +239,7 @@ func TestS2C14(t *testing.T) {
 	assertNoError(t, err)
 
 	// Use the same target bytes as C12
-	secretData, err := ioutil.ReadFile("12.txt")
+	secretData, err := ioutil.ReadFile("data/12.txt")
 	assertNoError(t, err)
 
 	secret, err := base64.StdEncoding.DecodeString(string(secretData))

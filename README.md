@@ -15,6 +15,7 @@ These challenges have been implemented as Go tests to make it easy to explore an
 * `prng.go` - My implementation of the Mersenne Twister PRNG
 * `rsa.go` - My implementation of RSA (keygen, encrypt, decrypt, sign, verify, pad, unpad). Uses OpenSSL to find large random primes.
 * `helpers.go` - Various helper functions across the codebase: hamming distance, modular exponentiation, frequency analysis, PKCS7 padding, cube root, etc.
+* `data/*.txt` - Data files as part of each challenge.
 
 ### To run:
 

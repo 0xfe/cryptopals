@@ -18,7 +18,7 @@ func TestS3C17(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
 	// Read random strings from file
-	data, err := ioutil.ReadFile("17.txt")
+	data, err := ioutil.ReadFile("data/17.txt")
 	assertNoError(t, err)
 
 	randomStrings := make([][]byte, 10)
@@ -152,7 +152,7 @@ func TestS3C18(t *testing.T) {
 }
 
 func TestS3C19(t *testing.T) {
-	data, err := ioutil.ReadFile("19.txt")
+	data, err := ioutil.ReadFile("data/19.txt")
 	assertNoError(t, err)
 
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
