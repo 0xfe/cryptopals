@@ -236,7 +236,11 @@ func RSAVerifySignature(message []byte, sig []byte, pub *RSAKey) (bool, error) {
 		return false, fmt.Errorf("could not unmarshall digest: %w", err)
 	}
 
+	fmt.Println("digest", asnDigest.DigestAlgorithm.String())
+	fmt.Println("digest", hex.EncodeToString(asnDigest.Digest))
+
 	// Validate that MD5 hash of message matches hash in signature
 	md := md5.Sum(message)
+	fmt.Println("md", hex.EncodeToString(md[:]))
 	return bytes.Equal(md[:], asnDigest.Digest), nil
 }

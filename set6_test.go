@@ -1,6 +1,8 @@
 package cryptopals
 
 import (
+	"crypto/md5"
+	"encoding/asn1"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -36,8 +38,57 @@ func TestS6C41(t *testing.T) {
 func TestS6C42(t *testing.T) {
 	keyPair := RSAGenKeyPair()
 
+	// Test sign and verify with PKCS1.5 padding and ASN.1 digest
 	sig, err := RSASignMessage([]byte("foobar"), keyPair.Priv)
 	assertNoError(t, err)
+	success, err := RSAVerifySignature([]byte("foobar"), sig, keyPair.Pub)
+	assertNoError(t, err)
+	assertTrue(t, success)
 
-	RSAVerifySignature([]byte("foobar"), sig, keyPair.Pub)
+	// Forge "hi mom" and check that it verifies with an abitrary keypair.
+	message := []byte("hi mom")
+
+	// Take MD5 hash of message and encode it into an ASN.1 blob.
+	md := md5.Sum(message)
+	asnDigest := RSADigest{
+		DigestAlgorithm: asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 2, 5}),
+		Digest:          md[:],
+	}
+
+	d, err := asn1.Marshal(asnDigest)
+	assertNoError(t, err)
+
+	// Length of modulus in octets (used for padding). This is equivalent to the RSA
+	// block size (for the respective key size.)
+	k := len(keyPair.Priv.N.Bytes())
+
+	// Add a whole bunch of garbage 0-s at the end (up to length k) so RSAPad has almost
+	// no extra padding to add.
+	forgedMessage := append(d, make([]byte, k-3-(len(d)))...)
+
+	// Add a few 1-bytes immediately after the data to accomodate for the cube root remainder,
+	// since we very likely won't end up with a perfect cube.
+	copy(forgedMessage[len(d):], []byte{1, 1, 1})
+
+	// Pad and create encryption Block (RFC 2313: Section 8.1) formatted for RSAVerify
+	eb := RSAPad(k, 1, forgedMessage)
+
+	// Convert octet-string to integer (RFC 2313: Section 8.2)
+	sum := big.NewInt(0)
+	for i := 1; i <= k; i++ {
+		p := new(big.Int).Exp(big.NewInt(256), big.NewInt(int64(k-i)), big.NewInt(0))
+		sum.Add(sum, new(big.Int).Mul(p, big.NewInt(int64(eb[i-1]))))
+	}
+
+	// Instead of signing the message, we take the cube root of the message.
+	// Assuming e=3, this should result in a value that does not wrap the modulus, which makes
+	// (d, N) ineffective. The verification process cubes the message (again, because e=3) as
+	// part of RSADecrypt (with public key).
+	//
+	// Note that cubeRoot returns a remainder incase sum is not a perfect cube.
+	sumCubeRt, _ := cubeRoot(sum)
+
+	success, err = RSAVerifySignature(message, sumCubeRt.Bytes(), keyPair.Pub)
+	assertNoError(t, err)
+	assertTrue(t, success)
 }
