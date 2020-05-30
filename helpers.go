@@ -1,9 +1,11 @@
 package cryptopals
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
+	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -461,4 +463,14 @@ func cubeRoot(i *big.Int) (cbrt *big.Int, rem *big.Int) {
 			step.Set(n1)
 		}
 	}
+}
+
+// generatePrime generates a huuuuuuge prime number
+func generatePrime(numBits int) *big.Int {
+	// Instead of finding large primes ourselves, we'll use OpenSSL. Start with 1024-bit
+	// primes, which gives us 2048-bit RSA keys.
+	fmt.Printf("$ openssl prime -generate -bits %d -hex\n", numBits)
+	pOut, _ := exec.Command("openssl", "prime", "-generate", "-bits", fmt.Sprintf("%d", numBits), "-hex").Output()
+	pBytes, _ := hex.DecodeString(string(pOut))
+	return new(big.Int).SetBytes(pBytes)
 }

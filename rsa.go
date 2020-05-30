@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"os/exec"
 )
 
 // RSAKey represents a single public or private key
@@ -25,16 +24,8 @@ type RSAKeyPair struct {
 
 // RSAGenKeyPair generates a new RSA key pair
 func RSAGenKeyPair() *RSAKeyPair {
-	// Instead of finding large primes ourselves, we'll use OpenSSL. Start with 1024-bit
-	// primes, which gives us 2048-bit RSA keys.
-	fmt.Println("$ openssl prime -generate -bits 1024 -hex")
-	pOut, _ := exec.Command("openssl", "prime", "-generate", "-bits", "1024", "-hex").Output()
-	pBytes, _ := hex.DecodeString(string(pOut))
-	qOut, _ := exec.Command("openssl", "prime", "-generate", "-bits", "1024", "-hex").Output()
-	qBytes, _ := hex.DecodeString(string(qOut))
-
-	p := new(big.Int).SetBytes(pBytes)
-	q := new(big.Int).SetBytes(qBytes)
+	p := generatePrime(1024)
+	q := generatePrime(1024)
 
 	nbi := func() *big.Int { return new(big.Int) }
 	n := nbi().Mul(p, q)

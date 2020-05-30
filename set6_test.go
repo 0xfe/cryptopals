@@ -92,3 +92,23 @@ func TestS6C42(t *testing.T) {
 	assertNoError(t, err)
 	assertTrue(t, success)
 }
+
+func TestS6C43(t *testing.T) {
+	// Test that DSA signing and verification works.
+
+	// Generate a DSA keypair
+	priv, pub, err := DSAGenKeyPair()
+	assertNoError(t, err)
+
+	// Message from challenge 43
+	message := []byte("For those that envy a MC it can be hazardous to your health\nSo be friendly, a matter of life and death, just like a etch-a-sketch\n")
+
+	// Sign with private key
+	sig, err := priv.Sign(message)
+	assertNoError(t, err)
+
+	// Verify with public key
+	valid, err := pub.Verify(message, sig)
+	assertNoError(t, err)
+	assertTrue(t, valid)
+}
