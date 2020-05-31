@@ -57,7 +57,7 @@ func DSAGenKeyPair() (priv *DSAKey, pub *DSAKey, err error) {
 }
 
 // Sign returns a signature for message signed with k
-func (dk *DSAKey) Sign(message []byte) (*DSASig, error) {
+func (dk *DSAKey) Sign(message []byte, args ...map[string]*big.Int) (*DSASig, error) {
 	// Generate a random k between 1 and q-1
 	k := big.NewInt(0)
 	r := big.NewInt(0)
@@ -70,10 +70,31 @@ func (dk *DSAKey) Sign(message []byte) (*DSASig, error) {
 		return nil, fmt.Errorf("could not hash message")
 	}
 
+	kMax := dk.q
+	if len(args) > 0 {
+		// Allow injecting h
+		if hVal, ok := args[0]["h"]; ok {
+			h = hVal
+		}
+
+		// Broken k
+		if kMaxVal, ok := args[0]["kMax"]; ok {
+			kMax = kMaxVal
+		}
+	}
+
 	// Generate r and s from a random k, if r == 0 or s == 0, try again with a new random k
 	for r.Cmp(big.NewInt(0)) == 0 || s.Cmp(big.NewInt(0)) == 0 {
-		k = nbi().Rand(rand.New(rand.NewSource(time.Now().UnixNano())), nbi().Sub(dk.q, big.NewInt(2)))
+		k = nbi().Rand(rand.New(rand.NewSource(time.Now().UnixNano())), nbi().Sub(kMax, big.NewInt(2)))
 		k = k.Add(k, big.NewInt(1))
+
+		// Allow injecting k
+		if len(args) > 0 {
+			if kVal, ok := args[0]["k"]; ok {
+				k = kVal
+			}
+		}
+
 		r = nbi().Mod(bigModExp(dk.g, k, dk.p), dk.q)
 		s = nbi().Mod(nbi().Mul(nbi().ModInverse(k, dk.q), nbi().Add(h, nbi().Mul(dk.key, r))), dk.q)
 	}

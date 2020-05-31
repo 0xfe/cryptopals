@@ -1,9 +1,13 @@
 package cryptopals
 
 import (
+	"bytes"
 	"crypto/md5"
+	"crypto/sha1"
 	"encoding/asn1"
+	"encoding/hex"
 	"fmt"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -14,7 +18,7 @@ func TestS6C41(t *testing.T) {
 
 	message := big.NewInt(42)
 
-	c := RSAEncrypt(message, keyPair.Pub)
+	c := keyPair.Pub.Encrypt(message)
 	fmt.Println("c:", c.Text(10))
 
 	// Modify c (using public N and v) to create C'
@@ -26,7 +30,7 @@ func TestS6C41(t *testing.T) {
 	fmt.Println("cPrime:", cPrime.Text(10))
 
 	// Decrypt C' using private key (assume C' is sent to a server to decrypt)
-	pPrime := RSADecrypt(cPrime, keyPair.Priv)
+	pPrime := keyPair.Priv.Decrypt(cPrime)
 	fmt.Println("pPrime:", pPrime.Text(10))
 	pPrimeOverS := new(big.Int).Mul(pPrime, new(big.Int).ModInverse(s, N))
 	p := new(big.Int).Mod(pPrimeOverS, N)
@@ -39,9 +43,9 @@ func TestS6C42(t *testing.T) {
 	keyPair := RSAGenKeyPair()
 
 	// Test sign and verify with PKCS1.5 padding and ASN.1 digest
-	sig, err := RSASignMessage([]byte("foobar"), keyPair.Priv)
+	sig, err := keyPair.Priv.Sign([]byte("foobar"))
 	assertNoError(t, err)
-	success, err := RSAVerifySignature([]byte("foobar"), sig, keyPair.Pub)
+	success, err := keyPair.Pub.Verify([]byte("foobar"), sig)
 	assertNoError(t, err)
 	assertTrue(t, success)
 
@@ -88,7 +92,7 @@ func TestS6C42(t *testing.T) {
 	// Note that cubeRoot returns a remainder incase sum is not a perfect cube.
 	sumCubeRt, _ := cubeRoot(sum)
 
-	success, err = RSAVerifySignature(message, sumCubeRt.Bytes(), keyPair.Pub)
+	success, err = keyPair.Pub.Verify(message, sumCubeRt.Bytes())
 	assertNoError(t, err)
 	assertTrue(t, success)
 }
@@ -109,6 +113,64 @@ func TestS6C43(t *testing.T) {
 
 	// Verify with public key
 	valid, err := pub.Verify(message, sig)
+	assertNoError(t, err)
+	assertTrue(t, valid)
+
+	// Crypotopals challenge: Recover private key from y (public key), given signature
+	r, success := new(big.Int).SetString("548099063082341131477253921760299949438196259240", 10)
+	assertTrue(t, success)
+	s, success := new(big.Int).SetString("857042759984254168557880549501802188789837994940", 10)
+	assertTrue(t, success)
+
+	nbi := func() *big.Int { return new(big.Int) }
+	hBytes := sha1.Sum(message)
+	h := nbi().SetBytes(hBytes[:])
+
+	// Recover private key by trying all k-values from 0 - 2^16. The SHA1 of the private key is xSHA1
+	xSHA1, err := hex.DecodeString("0954edd5e0afe5542a4adf012611a91912a3ec16")
+	assertNoError(t, err)
+	var priv2 *DSAKey
+	for i := 0; i < int(math.Pow(2, 16)); i++ {
+		k := nbi().SetInt64(int64(i))
+		if nbi().ModInverse(k, priv.q) == nil {
+			// If there's no inverse for k (modulo q), then skip
+			continue
+		}
+
+		// Construct a private key out of k, r, s, and h (modulo q)
+		x := nbi().Mod(nbi().Mul(nbi().Sub(nbi().Mul(s, k), h), nbi().ModInverse(r, priv.q)), priv.q)
+		priv2 = &DSAKey{
+			p:   priv.p,
+			q:   priv.q,
+			g:   priv.g,
+			key: x,
+		}
+		sig2, err := priv2.Sign(message, map[string]*big.Int{
+			"k": k,
+		})
+		assertNoError(t, err)
+		if sig2.r.Cmp(r) == 0 && sig2.s.Cmp(s) == 0 {
+			xSum := sha1.Sum([]byte(x.Text(16)))
+			assertTrue(t, bytes.Equal(xSum[:], xSHA1))
+			break
+		}
+	}
+
+	// Verify that the public key can verify messages signed by our cracked private key
+	y, success := nbi().SetString("84ad4719d044495496a3201c8ff484feb45b962e7302e56a392aee4abab3e4bdebf2955b4736012f21a08084056b19bcd7fee56048e004e44984e2f411788efdc837a0d2e5abb7b555039fd243ac01f0fb2ed1dec568280ce678e931868d23eb095fde9d3779191b8c0299d6e07bbb283e6633451e535c45513b2d33c99ea17", 16)
+	assertTrue(t, success)
+	pub2 := &DSAKey{
+		p:   priv.p,
+		q:   priv.q,
+		g:   priv.g,
+		key: y,
+	}
+
+	message = []byte("foobar")
+	sig, err = priv2.Sign(message, map[string]*big.Int{"kMax": big.NewInt(65535)})
+	assertNoError(t, err)
+
+	valid, err = pub2.Verify(message, sig)
 	assertNoError(t, err)
 	assertTrue(t, valid)
 }

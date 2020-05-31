@@ -864,18 +864,18 @@ func TestS5C39(t *testing.T) {
 
 	message := big.NewInt(42)
 
-	cipherValue := RSAEncrypt(message, keyPair.Pub)
+	cipherValue := keyPair.Pub.Encrypt(message)
 	fmt.Println("Encrypted Value:", cipherValue.Text(10))
 
-	plainValue := RSADecrypt(cipherValue, keyPair.Priv)
+	plainValue := keyPair.Priv.Decrypt(cipherValue)
 	fmt.Println("Decrypted Value:", plainValue.Text(10))
 	assertEquals(t, message.Int64(), plainValue.Int64())
 
 	textMessage := "foobar"
-	cipherText := RSAEncryptString(textMessage, keyPair.Pub)
+	cipherText := keyPair.Pub.EncryptString(textMessage)
 	fmt.Println("Encrypted Value:", cipherText)
 
-	plainText := RSADecryptString(cipherText, keyPair.Priv)
+	plainText := keyPair.Priv.DecryptString(cipherText)
 	fmt.Println("Decrypted Value:", plainText)
 
 	assertEquals(t, textMessage, plainText)
@@ -887,9 +887,9 @@ func TestS5C40(t *testing.T) {
 	keyPair3 := RSAGenKeyPair()
 
 	message := big.NewInt(42)
-	c1 := RSAEncrypt(message, keyPair1.Pub)
-	c2 := RSAEncrypt(message, keyPair2.Pub)
-	c3 := RSAEncrypt(message, keyPair3.Pub)
+	c1 := keyPair1.Pub.Encrypt(message)
+	c2 := keyPair2.Pub.Encrypt(message)
+	c3 := keyPair3.Pub.Encrypt(message)
 
 	// Use Chinese-Remainder-Theorem to decrypt message from the
 	// three ciphertexts (which are residuals mod their respective public keys)

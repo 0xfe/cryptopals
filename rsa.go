@@ -39,24 +39,24 @@ func RSAGenKeyPair() *RSAKeyPair {
 	}
 }
 
-// RSAEncrypt encrypts message with public key pub
-func RSAEncrypt(message *big.Int, pub *RSAKey) *big.Int {
-	return bigModExp(message, pub.v, pub.N)
+// Encrypt encrypts message with public key pub
+func (key *RSAKey) Encrypt(message *big.Int) *big.Int {
+	return bigModExp(message, key.v, key.N)
 }
 
-// RSADecrypt decrypts cipher with private key priv
-func RSADecrypt(cipher *big.Int, priv *RSAKey) *big.Int {
-	return bigModExp(cipher, priv.v, priv.N)
+// Decrypt decrypts cipher with private key priv
+func (key *RSAKey) Decrypt(cipher *big.Int) *big.Int {
+	return bigModExp(cipher, key.v, key.N)
 }
 
 // RSAEncryptString encrypts string message with public key pub
-func RSAEncryptString(message string, pub *RSAKey) string {
-	return RSAEncrypt(new(big.Int).SetBytes([]byte(message)), pub).Text(16)
+func (key *RSAKey) EncryptString(message string) string {
+	return key.Encrypt(new(big.Int).SetBytes([]byte(message))).Text(16)
 }
 
-func RSADecryptString(message string, priv *RSAKey) string {
+func (key *RSAKey) DecryptString(message string) string {
 	v, _ := new(big.Int).SetString(message, 16)
-	return string(RSADecrypt(v, priv).Bytes())
+	return string(key.Decrypt(v).Bytes())
 }
 
 /*
@@ -156,7 +156,7 @@ type RSADigest struct {
 	Digest          []byte
 }
 
-func RSASignMessage(message []byte, priv *RSAKey) ([]byte, error) {
+func (key *RSAKey) Sign(message []byte) ([]byte, error) {
 	// Take MD5 hash of message and encode it into an ASN.1 blob
 	md := md5.Sum(message)
 	asnDigest := RSADigest{
@@ -170,7 +170,7 @@ func RSASignMessage(message []byte, priv *RSAKey) ([]byte, error) {
 	}
 
 	// Length of modulus in octets
-	k := len(priv.N.Bytes())
+	k := len(key.N.Bytes())
 
 	// Pad and create encryption Block (RFC 2313: Section 8.1)
 	eb := RSAPad(k, 1, d)
@@ -183,11 +183,11 @@ func RSASignMessage(message []byte, priv *RSAKey) ([]byte, error) {
 	}
 
 	// Encrypt and return byte-representation of integer value
-	ed := RSAEncrypt(sum, priv).Bytes()
+	ed := key.Encrypt(sum).Bytes()
 	return ed, nil
 }
 
-func RSAVerifySignature(message []byte, sig []byte, pub *RSAKey) (bool, error) {
+func (key *RSAKey) Verify(message []byte, sig []byte) (bool, error) {
 	// Constant time integer-to-octet conversion: https://tools.ietf.org/html/rfc8017#section-4.1
 	// Copied from https://github.com/mozilla-services/go-cose/blob/master/core.go
 	i2osp := func(b *big.Int, n int) []byte {
@@ -209,10 +209,10 @@ func RSAVerifySignature(message []byte, sig []byte, pub *RSAKey) (bool, error) {
 
 	// Convert sig to integer value and decrypt
 	sum := new(big.Int).SetBytes(sig)
-	ed := RSADecrypt(sum, pub)
+	ed := key.Decrypt(sum)
 
 	// Convert decrypted integer to string
-	paddedData := i2osp(ed, len(pub.N.Bytes()))
+	paddedData := i2osp(ed, len(key.N.Bytes()))
 
 	// PKCS1.5 unpad
 	d := RSAUnpad(paddedData)
