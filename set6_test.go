@@ -284,7 +284,7 @@ func TestS6C44(t *testing.T) {
 			assertNoError(t, err)
 
 			if valid {
-				fmt.Println("Cracked! DSA public key (x):", priv2.key.Text(16))
+				fmt.Println("Cracked! DSA private key (x):", priv2.key.Text(16))
 				cracked = true
 				break
 			}
