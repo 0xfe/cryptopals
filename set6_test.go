@@ -7,9 +7,11 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"math/big"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -167,10 +169,136 @@ func TestS6C43(t *testing.T) {
 	}
 
 	message = []byte("foobar")
-	sig, err = priv2.Sign(message, map[string]*big.Int{"kMax": big.NewInt(65535)})
+	sig, err = priv2.Sign(message) // , map[string]*big.Int{"kMax": big.NewInt(65535)})
 	assertNoError(t, err)
 
 	valid, err = pub2.Verify(message, sig)
 	assertNoError(t, err)
 	assertTrue(t, valid)
+}
+
+func TestS6C44(t *testing.T) {
+	data, err := ioutil.ReadFile("data/44.txt")
+	assertNoError(t, err)
+	type S struct {
+		msg string
+		s   *big.Int
+		r   *big.Int
+		m   *big.Int
+	}
+
+	lines := strings.Split(string(data), "\n")
+	msgs := []*S{}
+	nbi := func() *big.Int { return new(big.Int) }
+
+	el := &S{}
+	for i, line := range lines {
+		switch i % 4 {
+		case 0:
+			// Line 1 is the message string
+			el.msg = line[5:]
+		case 1:
+			// Line 2 is 's' of signature
+			v, success := new(big.Int).SetString(line[3:], 10)
+			assertTrue(t, success)
+			el.s = v
+		case 2:
+			// Line 3 is 'r' of signature
+			v, success := new(big.Int).SetString(line[3:], 10)
+			assertTrue(t, success)
+			el.r = v
+		case 3:
+			// Line 4 is the SHA1 hash of the message
+			v, success := nbi().SetString(zeroPad(line[3:]), 16)
+			assertTrue(t, success)
+			el.m = v
+			msgs = append(msgs, el)
+			el = &S{}
+		}
+	}
+
+	for _, m := range msgs {
+		sum := sha1.Sum([]byte(m.msg))
+		fmt.Println(zeroPad(m.m.Text(16)), hex.EncodeToString(sum[:]))
+	}
+
+	_, priv, err := DSAGenKeyPair()
+	assertNoError(t, err)
+
+	y, success := nbi().SetString("2d026f4bf30195ede3a088da85e398ef869611d0f68f0713d51c9c1a3a26c95105d915e2d8cdf26d056b86b8a7b85519b1c23cc3ecdc6062650462e3063bd179c2a6581519f674a61f1d89a1fff27171ebc1b93d4dc57bceb7ae2430f98a6a4d83d8279ee65d71c1203d2c96d65ebbf7cce9d32971c3de5084cce04a2e147821", 16)
+	assertTrue(t, success)
+
+	pub2 := &DSAKey{
+		p:   priv.p,
+		q:   priv.q,
+		g:   priv.g,
+		key: y,
+	}
+
+	message := []byte("foobar")
+	var priv2 *DSAKey
+	var cracked bool
+
+	// Test to see if a nonce (k) was repeated between any pair of messages in the file. If
+	// k was reused, it is easy to recover the private key (x) from the messages + signatures.
+	for _, m1 := range msgs {
+		for _, m2 := range msgs {
+			// Construct a k from m1 and m2
+			m := nbi().Mod(nbi().Sub(m1.m, m2.m), priv.q) // (m1 - m2) mod q
+			s := nbi().Mod(nbi().Sub(m1.s, m2.s), priv.q) // (s1 - s2) mod q
+			if nbi().ModInverse(s, priv.q) == nil {
+				// If there's no inverse for s (modulo q), then skip
+				continue
+			}
+
+			// (m * modinv(s)) mod q
+			k := nbi().Mod(nbi().Mul(m, nbi().ModInverse(s, priv.q)), priv.q)
+			if nbi().ModInverse(k, priv.q) == nil {
+				// If there's no inverse for k (modulo q), then skip
+				continue
+			}
+
+			fmt.Println("Using k", k.Text(16))
+
+			// Construct a private key (x) out of k, r, s, and h (modulo q), using message 1 (m1). We could
+			// also use message 2 here, but that doesn't matter. This is the same equation as the previous
+			// challenge.
+			h := m1.m
+			r := m1.r
+			x := nbi().Mod(nbi().Mul(nbi().Sub(nbi().Mul(m1.s, k), h), nbi().ModInverse(r, priv.q)), priv.q)
+			priv2 = &DSAKey{
+				p:   priv.p,
+				q:   priv.q,
+				g:   priv.g,
+				key: x,
+			}
+
+			// Sign a message with this new private key
+			sig2, err := priv2.Sign(message, map[string]*big.Int{
+				"k": k,
+			})
+			assertNoError(t, err)
+
+			// Verify the message with the Cryptopals public key
+			valid, err := pub2.Verify(message, sig2)
+			assertNoError(t, err)
+
+			if valid {
+				fmt.Println("Cracked! DSA public key (x):", priv2.key.Text(16))
+				cracked = true
+				break
+			}
+		}
+
+		if cracked {
+			break
+		}
+	}
+
+	// Assert that we found the private key
+	assertTrue(t, cracked)
+
+	// Assert the the private key hashes to the Cryptopals private key
+	sum := sha1.Sum([]byte(priv2.key.Text(16)))
+	assertEquals(t, "ca8f6f7c66fa362d40760d135b763eb8527d3d52", hex.EncodeToString(sum[:]))
 }
