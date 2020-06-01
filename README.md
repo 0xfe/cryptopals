@@ -6,7 +6,13 @@ This repository consists of my documented [Go](https://golang.org) solutions of 
 
 These challenges have been implemented as Go tests to make it easy to explore and debug.
 
-### The files
+### Livestream
+
+I've been livecoding these challenges on Twitch -- if you want to join in, watch at https://twitch.tv/11111110b.
+
+Be warned: some of these sessions are looooooong!
+
+### The Files
 
 * `setN_test.go` - Solutions to the challenges in set `N`.
 * `aes.go` - My implementations of various AES operation modes (ECB, CBC, CTR), along with some block-size detection and cracking code.
@@ -18,7 +24,7 @@ These challenges have been implemented as Go tests to make it easy to explore an
 * `helpers.go` - Various helper functions across the codebase: hamming distance, modular exponentiation, frequency analysis, PKCS7 padding, cube root, etc.
 * `data/*.txt` - Data files as part of each challenge.
 
-### To run:
+### To Run:
 
 Note that some challenges have been disabled because they're very slow (e.g., timing attacks, brute force attacks). You can re-enable them within the test as you need.
 
