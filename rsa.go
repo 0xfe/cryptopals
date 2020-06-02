@@ -23,9 +23,9 @@ type RSAKeyPair struct {
 }
 
 // RSAGenKeyPair generates a new RSA key pair
-func RSAGenKeyPair() *RSAKeyPair {
-	p := generatePrime(1024)
-	q := generatePrime(1024)
+func RSAGenKeyPair(bitLen int) *RSAKeyPair {
+	p := generatePrime(bitLen / 2)
+	q := generatePrime(bitLen / 2)
 
 	nbi := func() *big.Int { return new(big.Int) }
 	n := nbi().Mul(p, q)
@@ -49,11 +49,12 @@ func (key *RSAKey) Decrypt(cipher *big.Int) *big.Int {
 	return bigModExp(cipher, key.v, key.N)
 }
 
-// RSAEncryptString encrypts string message with public key pub
+// EncryptString encrypts string message with public key pub
 func (key *RSAKey) EncryptString(message string) string {
 	return key.Encrypt(new(big.Int).SetBytes([]byte(message))).Text(16)
 }
 
+// DecryptString decrypts string message with public key pub
 func (key *RSAKey) DecryptString(message string) string {
 	v, _ := new(big.Int).SetString(message, 16)
 	return string(key.Decrypt(v).Bytes())

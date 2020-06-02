@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestS6C41(t *testing.T) {
-	keyPair := RSAGenKeyPair()
+	keyPair := RSAGenKeyPair(2048)
 
 	message := big.NewInt(42)
 
@@ -42,7 +43,7 @@ func TestS6C41(t *testing.T) {
 }
 
 func TestS6C42(t *testing.T) {
-	keyPair := RSAGenKeyPair()
+	keyPair := RSAGenKeyPair(2048)
 
 	// Test sign and verify with PKCS1.5 padding and ASN.1 digest
 	sig, err := keyPair.Priv.Sign([]byte("foobar"))
@@ -341,4 +342,52 @@ func TestS6C45(t *testing.T) {
 	valid, err = pub.Verify(message3, sig)
 	assertNoError(t, err)
 	assertTrue(t, valid)
+}
+
+func TestS6C46(t *testing.T) {
+	keyPair := RSAGenKeyPair(1024)
+
+	isEven := func(cipherText *big.Int, priv *RSAKey) bool {
+		pt := priv.Decrypt(cipherText)
+		if new(big.Int).Mod(pt, big.NewInt(2)).Cmp(big.NewInt(0)) == 0 {
+			return true
+		}
+
+		return false
+	}
+
+	// Unit-test isEven
+	assertFalse(t, isEven(keyPair.Pub.Encrypt(big.NewInt(1)), keyPair.Priv))
+	assertTrue(t, isEven(keyPair.Pub.Encrypt(big.NewInt(2)), keyPair.Priv))
+	assertFalse(t, isEven(keyPair.Pub.Encrypt(big.NewInt(3)), keyPair.Priv))
+	assertTrue(t, isEven(keyPair.Pub.Encrypt(big.NewInt(4)), keyPair.Priv))
+
+	b64message := "VGhhdCdzIHdoeSBJIGZvdW5kIHlvdSBkb24ndCBwbGF5IGFyb3VuZCB3aXRoIHRoZSBGdW5reSBDb2xkIE1lZGluYQ=="
+	message, err := base64.StdEncoding.DecodeString(b64message)
+	assertNoError(t, err)
+
+	m := new(big.Int).SetBytes(message)
+	ct := keyPair.Pub.Encrypt(m)
+
+	// Set upper and lower bounds for message
+	lb := big.NewInt(0)
+	ub := keyPair.Pub.N
+
+	fmt.Println("Cracking over 1024 iterations...")
+	// Extract message a bit at a time for 1024-bits (log2(N)). See explanation here:
+	//   https://crypto.stackexchange.com/questions/11053/rsa-least-significant-bit-oracle-attack
+	for i := 0; i < 1024; i++ {
+		// Double the cipherText
+		ct = ct.Mod(new(big.Int).Mul(ct, keyPair.Pub.Encrypt(big.NewInt(2))), keyPair.Pub.N)
+		if isEven(ct, keyPair.Priv) {
+			// Plaintext did not wrap modulus, so was less than half the modulus
+			ub = new(big.Int).Div(new(big.Int).Add(lb, ub), big.NewInt(2))
+		} else {
+			// Plaintext wrapped modulus, so was more than half the modulus
+			lb = new(big.Int).Div(new(big.Int).Add(lb, ub), big.NewInt(2))
+		}
+	}
+
+	fmt.Println("Cracked!", string(ub.Bytes()))
+	assertTrue(t, bytes.Equal(message[:len(message)-2], ub.Bytes()[:len(message)-2]))
 }

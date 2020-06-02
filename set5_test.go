@@ -859,7 +859,7 @@ func TestS5C37(t *testing.T) {
 func TestS5C39(t *testing.T) {
 	// Test RSA implementation with small and big numbers. Requires "OpenSSL" to
 	// be in the path for prime number generation.
-	keyPair := RSAGenKeyPair()
+	keyPair := RSAGenKeyPair(2048)
 	fmt.Printf("KeyPair:\nN: %+v\npub: %+v\npriv: %+v\n", keyPair.Pub.N, keyPair.Pub.v, keyPair.Priv.v)
 
 	message := big.NewInt(42)
@@ -882,9 +882,9 @@ func TestS5C39(t *testing.T) {
 }
 
 func TestS5C40(t *testing.T) {
-	keyPair1 := RSAGenKeyPair()
-	keyPair2 := RSAGenKeyPair()
-	keyPair3 := RSAGenKeyPair()
+	keyPair1 := RSAGenKeyPair(2048)
+	keyPair2 := RSAGenKeyPair(2048)
+	keyPair3 := RSAGenKeyPair(2048)
 
 	message := big.NewInt(42)
 	c1 := keyPair1.Pub.Encrypt(message)
