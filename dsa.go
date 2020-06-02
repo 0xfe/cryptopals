@@ -97,7 +97,9 @@ func (dk *DSAKey) Sign(message []byte, args ...map[string]*big.Int) (*DSASig, er
 	}
 
 	// Generate r and s from a random k, if r == 0 or s == 0, try again with a new random k
-	for r.Cmp(big.NewInt(0)) == 0 || s.Cmp(big.NewInt(0)) == 0 {
+	// Challenge 45 tests broken signature implementations when "g" == 0, so we'll disable the
+	// check if g == 0.
+	for dk.g.Cmp(big.NewInt(0)) != 0 && (r.Cmp(big.NewInt(0)) == 0 || s.Cmp(big.NewInt(0)) == 0) {
 		k = nbi().Rand(rand.New(rand.NewSource(time.Now().UnixNano())), nbi().Sub(kMax, big.NewInt(2)))
 		k = k.Add(k, big.NewInt(1))
 
@@ -118,6 +120,10 @@ func (dk *DSAKey) Sign(message []byte, args ...map[string]*big.Int) (*DSASig, er
 // Verify returns true if sig is a valid signature for message with key dk
 func (dk *DSAKey) Verify(message []byte, sig *DSASig) (bool, error) {
 	nbi := func() *big.Int { return new(big.Int) }
+
+	if sig.r.Cmp(big.NewInt(0)) == 0 {
+		return false, fmt.Errorf("bad signature: r == 0")
+	}
 
 	hBytes := sha1.Sum(message)
 	h, success := nbi().SetString(hex.EncodeToString(hBytes[:]), 16)

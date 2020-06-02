@@ -302,3 +302,43 @@ func TestS6C44(t *testing.T) {
 	sum := sha1.Sum([]byte(priv2.key.Text(16)))
 	assertEquals(t, "ca8f6f7c66fa362d40760d135b763eb8527d3d52", hex.EncodeToString(sum[:]))
 }
+
+func TestS6C45(t *testing.T) {
+	// This will produce a bad signature (r == 0)
+	priv, pub, err := DSAGenKeyPair(map[string]*big.Int{"g": big.NewInt(0)})
+	assertNoError(t, err)
+
+	message := []byte("foobar")
+	sig, err := priv.Sign(message)
+
+	// Validate that we receive an error
+	_, err = pub.Verify(message, sig)
+	assertHasError(t, err)
+
+	// Create a keypair using p+1 as the generator ("g")
+	p, success := new(big.Int).SetString(zeroPad("800000000000000089e1855218a0e7dac38136ffafa72eda7859f2171e25e65eac698c1702578b07dc2a1076da241c76c62d374d8389ea5aeffd3226a0530cc565f3bf6b50929139ebeac04f48c3c84afb796d61e5a4f9a8fda812ab59494232c7d2b4deb50aa18ee9e132bfa85ac4374d7f9091abc3d015efc871a584471bb1"), 16)
+	assertTrue(t, success)
+
+	pPlusOne := new(big.Int).Add(p, big.NewInt(1))
+	priv, pub, err = DSAGenKeyPair(map[string]*big.Int{"p": p, "g": pPlusOne})
+
+	// Sign message with p+1 key, notice that r==1 in signature
+	sig, err = priv.Sign(message)
+	fmt.Println(priv)
+
+	// Validate sig against original message
+	valid, err := pub.Verify(message, sig)
+	assertNoError(t, err)
+	assertTrue(t, valid)
+
+	// Validate sig against arbitrary messages
+	message2 := []byte("Hello, world")
+	message3 := []byte("Goodbye, world")
+	valid, err = pub.Verify(message2, sig)
+	assertNoError(t, err)
+	assertTrue(t, valid)
+
+	valid, err = pub.Verify(message3, sig)
+	assertNoError(t, err)
+	assertTrue(t, valid)
+}
