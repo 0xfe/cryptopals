@@ -2,7 +2,7 @@
 
 *Author*: Mohit Cheppudira <mohit@muthanna.com> 2020
 
-This repository consists of my documented [Go](https://golang.org) solutions of the [Cyptopals Cryptography Challenges](https://cryptopals.com/) (formerly known as the Matsano Crypto Challenges).
+This repository consists of my documented [Go](https://golang.org) solutions to all 6 sets of the original [Cyptopals Cryptography Challenges](https://cryptopals.com/) (formerly known as the Matsano Crypto Challenges).
 
 These challenges have been implemented as Go tests to make it easy to explore and debug.
 

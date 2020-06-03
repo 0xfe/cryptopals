@@ -393,13 +393,12 @@ func TestS6C46(t *testing.T) {
 	assertTrue(t, bytes.Equal(message[:len(message)-2], ub.Bytes()[:len(message)-2]))
 }
 
-func TestS6C47(t *testing.T) {
+func Bleichenbacher98(t *testing.T, bits int) {
 	fmt.Println("Starting Bleichenbacher98 attack. This might be slow.")
 	rand.Seed(time.Now().UnixNano())
 	nbi := func() *big.Int { return new(big.Int) }
 
 	// Challenge 47 is limited to 256-bit RSA
-	bits := 256
 	k := bits / 8
 
 	// Generate an RSA Key pair
@@ -442,7 +441,7 @@ func TestS6C47(t *testing.T) {
 			fmt.Println("step 2.a si=", si.Text(10))
 			for ; !isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)); si.Add(si, big.NewInt(1)) {
 			}
-		} else if i > 1 {
+		} else {
 			if len(M) == 1 {
 				// If there's just one range
 				a := M[0].a
@@ -526,4 +525,12 @@ func TestS6C47(t *testing.T) {
 
 	fmt.Println("CRACKED:", string(crackedMessage))
 	assertTrue(t, bytes.Equal(crackedMessage, RSAUnpad(zeroPadBytes(message))))
+}
+
+func TestS6C47(t *testing.T) {
+	Bleichenbacher98(t, 256)
+}
+
+func TestS6C48(t *testing.T) {
+	Bleichenbacher98(t, 768)
 }
