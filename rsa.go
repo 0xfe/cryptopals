@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"math/rand"
 )
 
 // RSAKey represents a single public or private key
@@ -81,7 +82,7 @@ func (key *RSAKey) DecryptString(message string) string {
 */
 
 // RSAPad pads data using PKCS1.5. 'k' is the length of the modulus
-// in octects.
+// in octects (1024-bit RSA = 128)
 func RSAPad(k int, blockType byte, data []byte) []byte {
 	paddedData := make([]byte, k) // zero initialized
 	paddedData[1] = blockType
@@ -92,13 +93,19 @@ func RSAPad(k int, blockType byte, data []byte) []byte {
 	}
 
 	if blockType == 2 {
-		panic("method not implemented")
+		// Fill with random non-zero bytes
+		for i := 0; i < k-3-len(data); i++ {
+			for paddedData[2+i] == 0 {
+				paddedData[2+i] = byte(rand.Int())
+			}
+		}
 	}
 
 	return paddedData
 }
 
 func RSAUnpad(paddedData []byte) []byte {
+	// TODO: Make sure paddedData is length-k, maybe with zeroPadBytes(...)
 	if paddedData[0] != 0 {
 		return nil
 	}
@@ -108,7 +115,7 @@ func RSAUnpad(paddedData []byte) []byte {
 		fillByte = 0xff
 	}
 	if paddedData[1] == 2 {
-		panic("method not implemented: unpad blockType 2")
+		fillByte = 0x03
 	}
 	start := 0
 	for i := 2; i < len(paddedData); i++ {
@@ -117,7 +124,7 @@ func RSAUnpad(paddedData []byte) []byte {
 			break
 		}
 
-		if paddedData[i] != fillByte {
+		if fillByte != 0x03 && paddedData[i] != fillByte {
 			return nil
 		}
 	}

@@ -400,6 +400,14 @@ func zeroPad(s string) string {
 	return s
 }
 
+// Zero-pad bytes to even-valued length
+func zeroPadBytes(s []byte) []byte {
+	if len(s)%2 == 1 {
+		return append([]byte{0}, s...)
+	}
+	return s
+}
+
 // Modular exponentiation for Big Ints
 func bigModExp(base *big.Int, exponent *big.Int, modulus *big.Int) *big.Int {
 	if modulus.Cmp(big.NewInt(1)) == 0 {
@@ -473,4 +481,29 @@ func generatePrime(numBits int) *big.Int {
 	pOut, _ := exec.Command("openssl", "prime", "-generate", "-bits", fmt.Sprintf("%d", numBits), "-hex").Output()
 	pBytes, _ := hex.DecodeString(string(pOut))
 	return new(big.Int).SetBytes(pBytes)
+}
+
+func bigCeilDiv(x, y *big.Int) *big.Int {
+	ceil := new(big.Int)
+	return ceil.Add(x, y).Sub(ceil, big.NewInt(1)).Div(ceil, y)
+}
+
+func bigFloorDiv(x, y *big.Int) *big.Int {
+	return new(big.Int).Div(x, y)
+}
+
+func bigMax(x, y *big.Int) *big.Int {
+	if x.Cmp(y) < 0 {
+		return y
+	}
+
+	return x
+}
+
+func bigMin(x, y *big.Int) *big.Int {
+	if x.Cmp(y) < 0 {
+		return x
+	}
+
+	return y
 }

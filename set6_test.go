@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestS6C41(t *testing.T) {
@@ -390,4 +391,139 @@ func TestS6C46(t *testing.T) {
 
 	fmt.Println("Cracked!", string(ub.Bytes()))
 	assertTrue(t, bytes.Equal(message[:len(message)-2], ub.Bytes()[:len(message)-2]))
+}
+
+func TestS6C47(t *testing.T) {
+	fmt.Println("Starting Bleichenbacher98 attack. This might be slow.")
+	rand.Seed(time.Now().UnixNano())
+	nbi := func() *big.Int { return new(big.Int) }
+
+	// Challenge 47 is limited to 256-bit RSA
+	bits := 256
+	k := bits / 8
+
+	// Generate an RSA Key pair
+	keyPair := RSAGenKeyPair(bits)
+	pub := keyPair.Pub
+	priv := keyPair.Priv
+
+	// This is our padding oracle, returns false if padding is bad
+	isPadded := func(ct *big.Int) bool {
+		pt := zeroPadBytes(priv.Decrypt(ct).Bytes())
+		return pt[0] == 0 && pt[1] == 2
+	}
+
+	// Create our ciphertext to crack
+	message := RSAPad(k, 2, []byte("kick it, CC"))
+	m := nbi().SetBytes(message)
+	c0 := pub.Encrypt(m)
+	assertTrue(t, isPadded(c0))
+
+	// Convenience constants
+	n := pub.N
+	B := nbi().Exp(big.NewInt(2), big.NewInt(int64(8*(k-2))), nil)
+	Bx2 := nbi().Mul(big.NewInt(2), B)
+	Bx3 := nbi().Mul(big.NewInt(3), B)
+
+	type Range struct {
+		a *big.Int
+		b *big.Int
+	}
+
+	// Initialize ranges (starting range from paper)
+	M := []Range{{a: Bx2, b: nbi().Sub(Bx3, big.NewInt(1))}}
+
+	// Step 2a: search for the smallest positive integer s such that c*s is PKCS conforming
+	si := bigCeilDiv(n, Bx3)
+	var crackedMessage []byte
+	for i := 1; crackedMessage == nil; i++ {
+		fmt.Printf("starting round %d with len(M) %d\n", i, len(M))
+		if i == 1 {
+			fmt.Println("step 2.a si=", si.Text(10))
+			for ; !isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)); si.Add(si, big.NewInt(1)) {
+			}
+		} else if i > 1 {
+			if len(M) == 1 {
+				// If there's just one range
+				a := M[0].a
+				b := M[0].b
+
+				ri := nbi().Mul(big.NewInt(2), bigCeilDiv(nbi().Sub(nbi().Mul(b, si), Bx2), n))
+				fmt.Println(i, "step 2.c ri=", ri.Text(10))
+				found := false
+
+				for ; !found; ri.Add(ri, big.NewInt(1)) {
+					si = bigCeilDiv(nbi().Add(Bx2, nbi().Mul(ri, n)), b)
+					siMax := nbi().Div(nbi().Add(Bx3, nbi().Mul(ri, n)), a)
+
+					for ; si.Cmp(siMax) <= 0; si.Add(si, big.NewInt(1)) {
+						ci := nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)
+						if isPadded(ci) {
+							fmt.Println(i, "step 2.c: found si=", si.Text(10))
+							found = true
+							break
+						}
+					}
+				}
+			} else {
+				// More than one range in M
+				fmt.Println(i, "step 2.b si=", si.Text(10))
+				for si = nbi().Add(si, big.NewInt(1)); !isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)); si.Add(si, big.NewInt(1)) {
+				}
+			}
+		}
+
+		// Step 3: narrow set of solutions
+		Mi := []Range{}
+		fmt.Println(i, "step 3 len(M)=", len(M))
+		for _, ran := range M {
+			a := ran.a
+			b := ran.b
+
+			rMin := bigCeilDiv(nbi().Add(nbi().Sub(nbi().Mul(a, si), Bx3), big.NewInt(1)), n)
+			rMax := nbi().Div(nbi().Sub(nbi().Mul(b, si), Bx2), n)
+
+			fmt.Println(i, "step 3 narrowing rMin, rMax", rMin.Text(10), rMax.Text(10))
+			for r := rMin; r.Cmp(rMax) != 1; r.Add(r, big.NewInt(1)) {
+				fmt.Println(i, "step 3 narrowing r=", r.Text(10))
+				newA := bigCeilDiv(nbi().Add(Bx2, nbi().Mul(r, n)), si)
+				newB := bigFloorDiv(nbi().Add(nbi().Sub(Bx3, big.NewInt(1)), nbi().Mul(r, n)), si)
+				newM := Range{bigMax(a, newA), bigMin(b, newB)}
+
+				if newM.a.Cmp(newM.b) > 0 {
+					continue
+				}
+
+				// Set union operation to merge intervals (poorly described in paper)
+				done := false
+				for i, mi := range Mi {
+					if mi.b.Cmp(newM.a) < 0 {
+						Mi = append(Mi, mi)
+					} else if newM.b.Cmp(mi.a) < 0 {
+						Mi = append(append(Mi, newM), Mi[i:]...)
+						done = true
+						break
+					} else {
+						newM = Range{a: bigMax(mi.a, newM.a), b: bigMin(mi.b, newM.b)}
+					}
+				}
+
+				if !done {
+					Mi = append(Mi, newM)
+				}
+			}
+		}
+
+		M = Mi
+
+		// Step 4: Compute solution if
+		if len(M) == 1 && M[0].a.Cmp(M[0].b) == 0 {
+			crackedMessage = RSAUnpad(zeroPadBytes(M[0].a.Bytes()))
+		}
+
+		i++
+	}
+
+	fmt.Println("CRACKED:", string(crackedMessage))
+	assertTrue(t, bytes.Equal(crackedMessage, RSAUnpad(zeroPadBytes(message))))
 }
