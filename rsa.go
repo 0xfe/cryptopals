@@ -1,5 +1,11 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+Implementation of RSA encryption, padding, and signatures. Used by multiple Cryptopals challenges.
+*/
+
 import (
 	"bytes"
 	"crypto/md5"
@@ -104,8 +110,9 @@ func RSAPad(k int, blockType byte, data []byte) []byte {
 	return paddedData
 }
 
+// RSAUnpad removes the padding from paddedData and returns the embedded
+// data. Note that paddedData must be zero-padded with length k.
 func RSAUnpad(paddedData []byte) []byte {
-	// TODO: Make sure paddedData is length-k, maybe with zeroPadBytes(...)
 	if paddedData[0] != 0 {
 		return nil
 	}
@@ -159,11 +166,13 @@ func RSAUnpad(paddedData []byte) []byte {
 	md5 OBJECT IDENTIFIER ::= { iso(1) member-body(2) US(840) rsadsi(113549) digestAlgorithm(2) 5 }
 */
 
+// RSADigest is the ASN.1 wire-representation of RSA signatures.
 type RSADigest struct {
 	DigestAlgorithm asn1.ObjectIdentifier
 	Digest          []byte
 }
 
+// Sign 'message' with private-key 'key' returning wire-ready signature.
 func (key *RSAKey) Sign(message []byte) ([]byte, error) {
 	// Take MD5 hash of message and encode it into an ASN.1 blob
 	md := md5.Sum(message)
@@ -195,6 +204,7 @@ func (key *RSAKey) Sign(message []byte) ([]byte, error) {
 	return ed, nil
 }
 
+// Verify that 'message' is signed with 'sig'. 'key' should be the signer's public key.
 func (key *RSAKey) Verify(message []byte, sig []byte) (bool, error) {
 	// Constant time integer-to-octet conversion: https://tools.ietf.org/html/rfc8017#section-4.1
 	// Copied from https://github.com/mozilla-services/go-cose/blob/master/core.go

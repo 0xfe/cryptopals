@@ -1,5 +1,11 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+This file consists of solutions to Set 5.
+*/
+
 import (
 	"bytes"
 	"crypto/hmac"
@@ -913,6 +919,6 @@ func TestS5C40(t *testing.T) {
 
 	// Since the keyPair.Pub.v is always 3, the original plaintext is
 	// the cube root of final (or sum)
-	plainVal, _ := cubeRoot(final)
+	plainVal, _ := bigCubeRt(final)
 	assertEquals(t, plainVal.Int64(), message.Int64())
 }

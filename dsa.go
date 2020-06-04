@@ -1,5 +1,11 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+Implementation of DSA signatures for Cryptopals set 6.
+*/
+
 import (
 	"crypto/sha1"
 	"encoding/hex"
@@ -9,6 +15,7 @@ import (
 	"time"
 )
 
+// DSAKey is a public or private DSA key.
 type DSAKey struct {
 	p   *big.Int
 	q   *big.Int
@@ -21,6 +28,7 @@ func (dk *DSAKey) String() string {
 		dk.p.Text(16), dk.q.Text(16), dk.g.Text(16), dk.key.Text(16))
 }
 
+// DSASig is a DSA signature.
 type DSASig struct {
 	r *big.Int
 	s *big.Int

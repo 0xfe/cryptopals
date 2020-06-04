@@ -1,5 +1,12 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+Implementation of AES encryption modes: ECB, CBC, CTR, along with some detection
+and cracking code for cryptopals.
+*/
+
 import (
 	"bytes"
 	"crypto/aes"
@@ -9,6 +16,7 @@ import (
 	"math/rand"
 )
 
+// Encrypt plainText with key using Electronic Code Block (ECB) mode.
 func encryptAESECB(plainText []byte, key []byte, blockSize int) ([]byte, error) {
 	cipherText := make([]byte, len(plainText))
 	cipher, err := aes.NewCipher(key)
@@ -29,6 +37,7 @@ func encryptAESECB(plainText []byte, key []byte, blockSize int) ([]byte, error) 
 	return cipherText, nil
 }
 
+// Decrypt cipherText with key using Electronic Code Block (ECB) mode.
 func decryptAESECB(cipherText []byte, key []byte, blockSize int) ([]byte, error) {
 	plainText := make([]byte, len(cipherText))
 	cipher, err := aes.NewCipher(key)
@@ -45,6 +54,7 @@ func decryptAESECB(cipherText []byte, key []byte, blockSize int) ([]byte, error)
 	return plainText, nil
 }
 
+// Encrypt plainText with key using Cipher Block Chaining (CBC) mode.
 func encryptAESCBC(plainText []byte, key []byte, iv []byte) ([]byte, error) {
 	blockSize := 16
 	if len(key) < blockSize {
@@ -79,6 +89,7 @@ func encryptAESCBC(plainText []byte, key []byte, iv []byte) ([]byte, error) {
 	return cipherText, nil
 }
 
+// Decrypt cipherText with key using Cipher Block Chaining (CBC) mode.
 func decryptAESCBC(cipherText []byte, key []byte, iv []byte) ([]byte, error) {
 	blockSize := 16
 	if len(key) < blockSize {
@@ -115,6 +126,7 @@ func decryptAESCBC(cipherText []byte, key []byte, iv []byte) ([]byte, error) {
 	return plainText, nil
 }
 
+// Encrypt plainText with key using Counter (CTR) mode.
 func encryptAESCTR(plainText []byte, key []byte, nonce uint64) ([]byte, error) {
 	blockSize := 16
 	blockCount := uint64(0)
@@ -153,12 +165,14 @@ func encryptAESCTR(plainText []byte, key []byte, nonce uint64) ([]byte, error) {
 	return cipherText[:length], nil
 }
 
+// Decrypt cipherText with key using Counter (CTR) mode.
 func decryptAESCTR(cipherText []byte, key []byte, nonce uint64) ([]byte, error) {
+	// Turns out that decryption is simply the opposite of encryption.
 	return encryptAESCTR(cipherText, key, nonce)
 }
 
-// Encrypts plainText under an unknown key, using ECB 50% of the time
-// and CBC (with a random IV) 50% of the time (randomly.)
+// Encrypts plainText under an unknown key, using ECB 50% of the time and CBC (with a
+// random IV) 50% of the time (randomly.)
 func encryptAESRandom(plainText []byte) ([]byte, error) {
 	key := make([]byte, 16)
 	_, err := rand.Read(key)

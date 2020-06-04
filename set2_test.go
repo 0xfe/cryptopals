@@ -1,5 +1,13 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+This file consists of solutions to Set 2. Run with:
+
+  $ go test -v --run S2
+*/
+
 import (
 	"bytes"
 	"encoding/base64"
@@ -63,6 +71,29 @@ func TestECBEncryptDecrypt(t *testing.T) {
 }
 
 func TestS2C11(t *testing.T) {
+	detectBlockSize := func(data []byte) (int, error) {
+		bestBlockSize := 0
+
+		for i := 4; i <= 40; i++ {
+			distance, err := numSimilarBlocks(data, i, 4)
+			fmt.Println(i, distance)
+			if err != nil {
+				return 0, fmt.Errorf("could not calculate block distance: %w", err)
+			}
+
+			// Pick the largest block size with similar blocks. This is due to aliasing
+			// effects of similarity. E.g., block size 16 with 1 similar block will have
+			// block size 8 with 2 similar blocks.
+			//
+			// Fixme: use square for similar block size
+			if distance > 0 {
+				bestBlockSize = i
+			}
+		}
+
+		return bestBlockSize, nil
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	plainText, err := ioutil.ReadFile("data/11.txt")
 	assertNoError(t, err)
@@ -128,6 +159,23 @@ func TestS2C12(t *testing.T) {
 	assertEquals(t, bytes.Equal(secret, crackedSecret[:len(secret)]), true)
 }
 
+// parseCookie extracts the "key=value&key=value" pairs from 'cookie' and
+// returns a map. This is used by a number of challenges in set 2.
+func parseCookie(cookie string) (map[string]string, error) {
+	parts := strings.Split(cookie, "&")
+	cookieMap := map[string]string{}
+	for _, part := range parts {
+		subParts := strings.Split(part, "=")
+		if len(subParts) != 2 {
+			return nil, fmt.Errorf("Invalid cookie part %s in %s", part, cookie)
+		}
+
+		cookieMap[strings.TrimSpace(subParts[0])] = subParts[1]
+	}
+
+	return cookieMap, nil
+}
+
 func TestCookieParsing(t *testing.T) {
 	cookie, err := parseCookie("foo=bar&baz=qux&zap=zazzle")
 	assertNoError(t, err)
@@ -139,12 +187,36 @@ func TestCookieParsing(t *testing.T) {
 	cookie, err = parseCookie("foo =bar&baz=qux&zap=zazzle")
 	assertNoError(t, err)
 	assertEquals(t, "bar", cookie["foo"])
-
-	sanitized := sanitizeCookieValue("fo==obar&&boo=baz&hello")
-	assertEquals(t, "foobarboobazhello", sanitized)
 }
 
 func TestS2C13(t *testing.T) {
+	// Remove cookie control characters '&' and '&' from val.
+	sanitizeCookieValue := func(val string) string {
+		sanitizedString := ""
+		for _, c := range val {
+			if c != '&' && c != '=' {
+				sanitizedString += string(c)
+			}
+		}
+
+		return sanitizedString
+	}
+
+	// Verify that sanitization works
+	sanitized := sanitizeCookieValue("fo==obar&&boo=baz&hello")
+	assertEquals(t, "foobarboobazhello", sanitized)
+
+	// Encoodes cookie map into a string
+	encodeCookie := func(cookie map[string]string, order []string) string {
+		cookies := []string{}
+		for _, k := range order {
+			cookies = append(cookies, fmt.Sprintf("%s=%s", sanitizeCookieValue(k), sanitizeCookieValue(cookie[k])))
+		}
+
+		return strings.Join(cookies, "&")
+	}
+
+	// Returns the encoded profile for email
 	profileFor := func(email string) string {
 		profile := map[string]string{
 			"email": email,

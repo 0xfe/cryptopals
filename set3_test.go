@@ -1,5 +1,11 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+This file consists of solutions to Set 3.
+*/
+
 import (
 	"bytes"
 	"encoding/base64"

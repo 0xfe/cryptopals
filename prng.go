@@ -1,11 +1,15 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+Implementation of Mersenne Twister from: https://en.wikipedia.org/wiki/Mersenne_Twister
+*/
+
 import (
 	"fmt"
 	"math"
 )
-
-// Implementation of Mersenne Twister from: https://en.wikipedia.org/wiki/Mersenne_Twister
 
 // Twister represents the internal state for a Mersenne Twister. This is setup for 32-bit
 // word sizes. To make this work for 64-bit (and 32-bit), change uint32s to uint64s, and
@@ -81,6 +85,7 @@ func NewMT19937Twister() *Twister {
 	return twister
 }
 
+// Handy for debugging the internal state
 func (t *Twister) String() string {
 	return fmt.Sprintf("w: %d, n: %d, index: %d, MT(%d): %+v...", t.w, t.n, t.index, len(t.MT), t.MT[:5])
 }
@@ -107,7 +112,8 @@ func (t *Twister) temper(y uint32) uint32 {
 	return y
 }
 
-// Untemper reconstructs "y" from diffused/tempered value
+// Untemper reconstructs "y" from diffused/tempered value. This is part of
+// a Cryptopals challenge solution.
 func (t *Twister) untemper(y uint32) uint32 {
 	y ^= y >> t.l         // reverse op4
 	y ^= (y << t.t) & t.c // reverse op3

@@ -21,12 +21,15 @@ Be warned: some of these sessions are looooooong!
 * `prng.go` - My implementation of the Mersenne Twister PRNG
 * `rsa.go` - My implementation of RSA (keygen, encrypt, decrypt, sign, verify, pad, unpad). Uses OpenSSL to find large random primes.
 * `dsa.go` - My implementation of DSA (keygen, sign, verify)
-* `helpers.go` - Various helper functions across the codebase: hamming distance, modular exponentiation, frequency analysis, PKCS7 padding, cube root, etc.
+* `pkcs7.go` - Functions implementing PKCS7 padding and unpadding.
+* `english.go` - English plaintext-detection using frequency analysis.
+* `bigmath.go` - Modular arithmetic with big integers (exponention, cube root, ceil/floor division, etc.)
+* `helpers.go` - Various helper functions across the codebase: hamming distance, blocksize detection, padding, etc.
 * `data/*.txt` - Data files as part of each challenge.
 
 ### To Run:
 
-Note that some challenges have been disabled because they're very slow (e.g., timing attacks, brute force attacks). You can re-enable them within the test as you need.
+Note that some challenges have been disabled because they're very slow (e.g., timing attacks, brute force attacks, bleichenbacher98). You can re-enable them within the test as you need.
 
 #### Run all challenges:
 

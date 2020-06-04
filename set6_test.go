@@ -1,5 +1,11 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+This file consists of solutions to Set 6.
+*/
+
 import (
 	"bytes"
 	"crypto/md5"
@@ -94,7 +100,7 @@ func TestS6C42(t *testing.T) {
 	// part of RSADecrypt (with public key).
 	//
 	// Note that cubeRoot returns a remainder incase sum is not a perfect cube.
-	sumCubeRt, _ := cubeRoot(sum)
+	sumCubeRt, _ := bigCubeRt(sum)
 
 	success, err = keyPair.Pub.Verify(message, sumCubeRt.Bytes())
 	assertNoError(t, err)
@@ -528,9 +534,23 @@ func Bleichenbacher98(t *testing.T, bits int) {
 }
 
 func TestS6C47(t *testing.T) {
+	DISABLED := true
+
+	if DISABLED {
+		fmt.Println("Skipping disabled test S647: Bleichenbacher98 - 256. Very slooooow!")
+		return
+	}
+
 	Bleichenbacher98(t, 256)
 }
 
 func TestS6C48(t *testing.T) {
+	DISABLED := true
+
+	if DISABLED {
+		fmt.Println("Skipping disabled test S648: Bleichenbacher98 - 784. Very slooooow!")
+		return
+	}
+
 	Bleichenbacher98(t, 768)
 }

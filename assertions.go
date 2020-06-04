@@ -1,5 +1,11 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+Assertions for unit tests.
+*/
+
 import (
 	"fmt"
 	"runtime/debug"

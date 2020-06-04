@@ -1,5 +1,13 @@
 package cryptopals
 
+/*
+## Cryptopals Solutions by Mohit Muthanna Cheppudira 2020.
+
+This file consists of solutions to Set 1. Run with:
+
+  $ go test -v --run S1
+*/
+
 import (
 	"encoding/base64"
 	"encoding/hex"
