@@ -400,11 +400,20 @@ func TestS6C46(t *testing.T) {
 }
 
 func Bleichenbacher98(t *testing.T, bits int) {
-	fmt.Println("Starting Bleichenbacher98 attack. This might be slow.")
+	// Implementation of the BB98 attack from Daniel Bleichenbacher's famous
+	// paper:
+	//
+	//  Chosen Ciphertext Attacks Against Protocols Based on the RSA Encryption
+	//  Standard PKCS #1
+	//
+	// http://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf
+	fmt.Printf("Starting Bleichenbacher98 attack using %d-bit RSA keys. This might be slow.\n", bits)
 	rand.Seed(time.Now().UnixNano())
+
+	// Helper funtion for creating big ints (saves a few characters.)
 	nbi := func() *big.Int { return new(big.Int) }
 
-	// Challenge 47 is limited to 256-bit RSA
+	// Challenge 47 is 256-bit RSA, Challenge 48 is 784-bit RSA
 	k := bits / 8
 
 	// Generate an RSA Key pair
@@ -412,73 +421,84 @@ func Bleichenbacher98(t *testing.T, bits int) {
 	pub := keyPair.Pub
 	priv := keyPair.Priv
 
-	// This is our padding oracle, returns false if padding is bad
+	// This is our padding oracle, returns true if the plaintext (decrypted from ct)
+	// has valid PKCS1.
 	isPadded := func(ct *big.Int) bool {
 		pt := zeroPadBytes(priv.Decrypt(ct).Bytes())
 		return pt[0] == 0 && pt[1] == 2
 	}
 
-	// Create our ciphertext to crack
+	// Step 1: Create our ciphertext to crack: "kick it, CC"
 	message := RSAPad(k, 2, []byte("kick it, CC"))
 	m := nbi().SetBytes(message)
 	c0 := pub.Encrypt(m)
+
+	// c0 is the encrypted message, verify that the oracle detects the padding.
 	assertTrue(t, isPadded(c0))
 
-	// Convenience constants
-	n := pub.N
-	B := nbi().Exp(big.NewInt(2), big.NewInt(int64(8*(k-2))), nil)
-	Bx2 := nbi().Mul(big.NewInt(2), B)
-	Bx3 := nbi().Mul(big.NewInt(3), B)
+	// Convenience constants (see paper)
+	n := pub.N                                                     // RSA key modulus
+	B := nbi().Exp(big.NewInt(2), big.NewInt(int64(8*(k-2))), nil) // search space
+	Bx2 := nbi().Mul(big.NewInt(2), B)                             // 2B
+	Bx3 := nbi().Mul(big.NewInt(3), B)                             // 3B
 
+	// Keeps track of the search intervals in M.
 	type Range struct {
 		a *big.Int
 		b *big.Int
 	}
 
-	// Initialize ranges (starting range from paper)
+	// Initialize ranges (starting range from paper). First valid interval between 2B and 3B-1.
 	M := []Range{{a: Bx2, b: nbi().Sub(Bx3, big.NewInt(1))}}
 
-	// Step 2a: search for the smallest positive integer s such that c*s is PKCS conforming
-	si := bigCeilDiv(n, Bx3)
+	// computeSi is a helper function to search for a valid padded block. Starting at
+	// siStart, and incrementing by 1, calculate c0 * enc(si), returning if we find a
+	// padded block (confirmed via oracle.)
+	computeSi := func(siStart *big.Int) (si *big.Int) {
+		for si = siStart; !isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)); si.Add(si, big.NewInt(1)) {
+		}
+		return si
+	}
+
+	// Step 2: Start search at n / 3B. See paper for why this is a good place to start.
 	var crackedMessage []byte
+	si := bigCeilDiv(n, Bx3)
 	for i := 1; crackedMessage == nil; i++ {
-		fmt.Printf("starting round %d with len(M) %d\n", i, len(M))
+		fmt.Printf("starting round %d with %d intervals\n", i, len(M))
 		if i == 1 {
+			// Step 2a: first iteration: search for the smallest positive integer s such
+			// that c*s is PKCS conforming
 			fmt.Println("step 2.a si=", si.Text(10))
-			for ; !isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)); si.Add(si, big.NewInt(1)) {
-			}
+			si = computeSi(si)
 		} else {
-			if len(M) == 1 {
-				// If there's just one range
+			if len(M) != 1 {
+				// Step 2b: If there's more than one range in M, then compute si
+				fmt.Println(i, "step 2.b si=", si.Text(10))
+				si = computeSi(si.Add(si, big.NewInt(1)))
+			} else {
+				// Step 2c: If there's just one range, then search within
 				a := M[0].a
 				b := M[0].b
 
 				ri := nbi().Mul(big.NewInt(2), bigCeilDiv(nbi().Sub(nbi().Mul(b, si), Bx2), n))
 				fmt.Println(i, "step 2.c ri=", ri.Text(10))
-				found := false
 
+				found := false
 				for ; !found; ri.Add(ri, big.NewInt(1)) {
 					si = bigCeilDiv(nbi().Add(Bx2, nbi().Mul(ri, n)), b)
 					siMax := nbi().Div(nbi().Add(Bx3, nbi().Mul(ri, n)), a)
 
 					for ; si.Cmp(siMax) <= 0; si.Add(si, big.NewInt(1)) {
-						ci := nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)
-						if isPadded(ci) {
-							fmt.Println(i, "step 2.c: found si=", si.Text(10))
+						if isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)) {
 							found = true
 							break
 						}
 					}
 				}
-			} else {
-				// More than one range in M
-				fmt.Println(i, "step 2.b si=", si.Text(10))
-				for si = nbi().Add(si, big.NewInt(1)); !isPadded(nbi().Mod(nbi().Mul(c0, pub.Encrypt(si)), n)); si.Add(si, big.NewInt(1)) {
-				}
 			}
 		}
 
-		// Step 3: narrow set of solutions
+		// Step 3: narrow the set of ranges in M
 		Mi := []Range{}
 		fmt.Println(i, "step 3 len(M)=", len(M))
 		for _, ran := range M {
@@ -521,7 +541,7 @@ func Bleichenbacher98(t *testing.T, bits int) {
 
 		M = Mi
 
-		// Step 4: Compute solution if
+		// Step 4: Compute solution if there's only one interval left (and they're the same value)
 		if len(M) == 1 && M[0].a.Cmp(M[0].b) == 0 {
 			crackedMessage = RSAUnpad(zeroPadBytes(M[0].a.Bytes()))
 		}
@@ -534,7 +554,7 @@ func Bleichenbacher98(t *testing.T, bits int) {
 }
 
 func TestS6C47(t *testing.T) {
-	DISABLED := true
+	DISABLED := false
 
 	if DISABLED {
 		fmt.Println("Skipping disabled test S647: Bleichenbacher98 - 256. Very slooooow!")

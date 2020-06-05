@@ -93,7 +93,7 @@ func calcStringCost(str []byte) float64 {
 		cost += math.Pow(expectedCount-observedCount, 2) / expectedCount
 	}
 
-	return cost
+	return math.Sqrt(cost)
 }
 
 // Calculates the liklihood of str being an English string using correlation. Higher score
@@ -106,4 +106,32 @@ func calcStringScore(str []byte) float64 {
 	}
 
 	return score
+}
+
+// Try to crack XOR-encrypted cipherText by trying all 256 possible (byte) keys, and returning
+// the plainText that is most English-like. This is used in challenges in sets 1 and 3.
+func crackXORByteCost(cipherText []byte) (key byte, cost float64, plainText string) {
+	bestCost := float64(len(cipherText) * 100)
+	var bestString string
+	var bestKey byte
+	for i := 0; i < 256; i++ {
+		key := byte(i)
+		plainText := make([]byte, len(cipherText))
+
+		// Decrypt with XOR
+		for i := range cipherText {
+			plainText[i] = cipherText[i] ^ key
+		}
+		// Calculate the "englishness" of plainText. Lower is better.
+		cost := calcStringCost(plainText)
+
+		// Keep track of the lowest cost.
+		if cost < bestCost {
+			bestCost = cost
+			bestString = string(plainText)
+			bestKey = byte(key)
+		}
+	}
+
+	return bestKey, bestCost, bestString
 }

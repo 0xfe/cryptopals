@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -52,45 +51,13 @@ func TestS1C2(t *testing.T) {
 	assertEquals(t, wantHex, gotHex)
 }
 
-// This method extracts the byte-at-a-time XOR decryption from the previous challenge.
-func decryptXORByte(data []byte, key byte) []byte {
-	out := make([]byte, len(data))
-	for i := range data {
-		out[i] = data[i] ^ key
-	}
-
-	return out
-}
-
-// Try to crack cipherText by XOR-decrypting using all 255 characters as the key, then
-// using a letter-frequency analysis to weed out the english text.
-func crackXORByteCost(cipherText []byte) (key byte, cost float64, plainText string) {
-	bestCost := float64(len(cipherText) * 100)
-	var bestString string
-	var bestKey byte
-	for i := 0; i < 256; i++ {
-		key := byte(i)
-		plainText := decryptXORByte(cipherText, byte(key))
-
-		// Calculate the "englishness" of plainText. Lower is better.
-		cost := math.Sqrt(calcStringCost(plainText))
-
-		// Keep track of the lowest cost.
-		if cost < bestCost {
-			bestCost = cost
-			bestString = string(plainText)
-			bestKey = byte(key)
-		}
-	}
-
-	return bestKey, bestCost, bestString
-}
-
 func TestS1C3(t *testing.T) {
 	cipherTextHex := "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
 	cipherText, err := hex.DecodeString(cipherTextHex)
 	assertNoError(t, err)
 
+	// XOR-decrypt with all 256 possible keys, and pick the plainText with the
+	// most "english-like" letter-frequency distribution.
 	bestKey, bestCost, bestString := crackXORByteCost(cipherText)
 
 	fmt.Println(bestKey, bestCost, bestString)
@@ -105,10 +72,14 @@ func TestS1C4(t *testing.T) {
 
 	bestCost := float64(1000)
 	bestPlainText := ""
+
 	for _, line := range lines {
 		cipherText, err := hex.DecodeString(line)
 		assertNoError(t, err)
 
+		// XOR-decrypt each line with all 256 possible keys, and pick the plainText with the
+		// most "english-like" letter-frequency distribution. The solution is the line with
+		// the lowest cost.
 		_, cost, plainText := crackXORByteCost(cipherText)
 		if cost < bestCost {
 			bestPlainText = plainText
